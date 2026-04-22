@@ -2,7 +2,7 @@
 //  PhotoLibraryClient.swift
 //  PHOU
 //
-//  Created by 서동환 on 4/23/26.
+//  Created by 서동환 on 4/22/26.
 //
 
 @preconcurrency import Photos
@@ -159,15 +159,3 @@ private func firstAssetId(in collection: PHAssetCollection) -> String? {
     return PHAsset.fetchAssets(in: collection, options: options).firstObject?.localIdentifier
 }
 
-private extension PhotoAsset.MediaType {
-    init(from mediaType: PHAssetMediaType) {
-        switch mediaType {
-        case .image:
-            self = .image
-        case .video:
-            self = .video
-        default:
-            self = .unknown
-        }
-    }
-}
