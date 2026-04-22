@@ -150,6 +150,8 @@ xcuserdata
 .obsidian/appearance.json
 
 # Start of SNMac custom gitignore
+.claude/cache
+.claude/settings.local.json
 .xcuserstate
 GoogleService-Info.plist
 Secrets.xcconfig
