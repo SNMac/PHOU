@@ -11,6 +11,7 @@ struct AlbumGroup: Identifiable, Equatable, Sendable {
     let id: String
     let title: String
     let assetCount: Int
+    let coverAssetId: String? = nil
     let albumType: AlbumType
 
     enum AlbumType: Equatable, Sendable {
