@@ -84,7 +84,7 @@ struct AlbumView: View {
                     }
                 }
                 .frame(width: 60, height: 60)
-                .cornerRadius(8)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(album.title)
