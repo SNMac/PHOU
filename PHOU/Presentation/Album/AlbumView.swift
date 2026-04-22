@@ -9,7 +9,7 @@ import SwiftUI
 import ComposableArchitecture
 
 struct AlbumView: View {
-    let store: StoreOf<AlbumFeature>
+    @Bindable var store: StoreOf<AlbumFeature>
 
     var body: some View {
         NavigationStack {

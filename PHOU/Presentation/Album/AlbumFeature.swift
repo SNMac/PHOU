@@ -5,6 +5,7 @@
 //  Created by 서동환 on 4/22/26.
 //
 
+import Foundation
 import ComposableArchitecture
 
 @Reducer
@@ -15,7 +16,7 @@ struct AlbumFeature {
         var albums: [AlbumGroup] = []
         var isLoading = false
         var errorMessage: String?
-        @PresentationState var albumPhotoGrid: AlbumPhotoGridFeature.State?
+        @Presents var albumPhotoGrid: AlbumPhotoGridFeature.State?
     }
 
     enum Action {
