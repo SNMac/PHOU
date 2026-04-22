@@ -1,6 +1,6 @@
 # Architecture Foundation — Task Checklist
 
-Last Updated: 2026-04-22 (3차 세션 종료)
+Last Updated: 2026-04-22 (4차 세션 종료)
 
 ---
 
@@ -70,7 +70,7 @@ Last Updated: 2026-04-22 (3차 세션 종료)
 
 ## 남은 작업
 
-- [ ] PR 생성 (`feature/#1-architecture-foundation` → `main`)
+- [ ] PR #2 Merge
 - [ ] GitHub Issue #1 Close
 - [ ] 권한 거부 시나리오 테스트
 
@@ -89,3 +89,4 @@ Last Updated: 2026-04-22 (3차 세션 종료)
 | `9b023be` | @Reducer 제거 + 수동 Reducer 준수 (잘못된 방향, 이번 세션에서 복원) |
 | `971a5ce` | TCA 1.25.5 업데이트, SWIFT_DEFAULT_ACTOR_ISOLATION 제거, @Reducer 복원 |
 | `ff768d8` | GalleryView 정사각형 그리드 수정 (Color.clear overlay 패턴) |
+| `2ae591b` | withCheckedContinuation 이중 resume 방지 (코드 리뷰 반영) |

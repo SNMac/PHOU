@@ -1,12 +1,12 @@
 # Architecture Foundation — Context & Key Decisions
 
-Last Updated: 2026-04-22 (3차 세션 종료 시점)
+Last Updated: 2026-04-22 (4차 세션 종료 시점)
 
 ---
 
 ## 현재 상태 요약
 
-**빌드 성공** ✅ — 시뮬레이터 실행 확인. 갤러리 그리드 정사각형 수정 완료.
+**PR #2 오픈 중** — 코드 리뷰 반영 완료, Merge 대기.
 
 ---
 
@@ -182,9 +182,32 @@ Color.clear
 
 ---
 
+## 코드 리뷰 반영 (4차 세션, PR #2)
+
+### [HIGH] withCheckedContinuation 이중 resume — 수정 완료 (커밋 2ae591b)
+`PHImageManager.requestImage`는 `isSynchronous=false`일 때 핸들러를 여러 번 호출 가능.
+`resumed` 플래그로 첫 번째 호출에서만 `continuation.resume` 되도록 보장.
+
+```swift
+var resumed = false
+PHImageManager.default().requestImage(...) { result, _ in
+    guard !resumed else { return }
+    resumed = true
+    continuation.resume(returning: result)
+}
+```
+
+### [MEDIUM] fetchPhotos 전체 배열 변환 메모리 이슈 — Issue #3 등록
+현재 Phase 범위 밖. 갤러리 안정화 후 페이지네이션 도입 예정.
+
+### [MEDIUM] 셀마다 PHAsset 재fetch 성능 이슈 — Issue #4 등록
+`PhotoThumbnailView`에 `id: String`만 전달하는 것은 **의도된 설계** (Domain 분리).
+`PHCachingImageManager` 도입 시점에 함께 최적화 예정.
+
+---
+
 ## 다음 세션 할 일
 
-- [ ] PR 생성 (`feature/#1-architecture-foundation` → `main`)
+- [ ] PR #2 Merge
 - [ ] GitHub Issue #1 Close
 - [ ] 권한 거부 시나리오 테스트
-- [ ] 시뮬레이터에서 전체 기능 검증
