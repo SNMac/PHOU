@@ -48,6 +48,7 @@ extension PhotoLibraryClient: DependencyKey {
                     id: collection.localIdentifier,
                     title: collection.localizedTitle ?? "",
                     assetCount: count,
+                    coverAssetId: firstAssetId(in: collection),
                     albumType: .smartAlbum
                 ))
             }
@@ -60,6 +61,7 @@ extension PhotoLibraryClient: DependencyKey {
                     id: collection.localIdentifier,
                     title: collection.localizedTitle ?? "",
                     assetCount: count,
+                    coverAssetId: firstAssetId(in: collection),
                     albumType: .userAlbum
                 ))
             }
@@ -89,8 +91,8 @@ extension PhotoLibraryClient: DependencyKey {
         },
         fetchAlbums: {
             [
-                AlbumGroup(id: "recents", title: "최근 항목", assetCount: 12, albumType: .smartAlbum),
-                AlbumGroup(id: "favorites", title: "즐겨찾기", assetCount: 1, albumType: .smartAlbum)
+                AlbumGroup(id: "recents", title: "최근 항목", assetCount: 12, coverAssetId: "preview-0", albumType: .smartAlbum),
+                AlbumGroup(id: "favorites", title: "즐겨찾기", assetCount: 1, coverAssetId: nil, albumType: .smartAlbum)
             ]
         },
         deleteAssets: { _ in }
@@ -115,4 +117,11 @@ private extension PhotoAuthStatus {
         @unknown default:    self = .denied
         }
     }
+}
+
+private func firstAssetId(in collection: PHAssetCollection) -> String? {
+    let options = PHFetchOptions()
+    options.fetchLimit = 1
+    options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+    return PHAsset.fetchAssets(in: collection, options: options).firstObject?.localIdentifier
 }
