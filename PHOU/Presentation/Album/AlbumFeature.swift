@@ -12,7 +12,9 @@ struct AlbumFeature {
     @ObservableState
     struct State: Equatable {}
 
-    enum Action {}
+    enum Action {
+        case onAppear
+    }
 
     var body: some ReducerOf<Self> {
         Reduce { _, _ in .none }
