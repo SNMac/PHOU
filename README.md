@@ -6,14 +6,19 @@
 > 
 > [Figma]()
 > 
-> 개발 기간: 
-> 리팩토링 기간: 
+> 개발 기간: 2026.04.22 ~
+
+<br>
 
 <a href="">
     <img src="">
 </a>
 
+<br>
+
 ---
+
+<br>
 
 ## 👥 대상 사용자
 - 스마트폰 용량 관리가 필요하여 불필요한 사진을 정리하고 싶은 사람
@@ -21,7 +26,11 @@
 - 서버 전송 및 프라이버시 침해 걱정 없이 안전하게 AI 사진 추천/검색 기능을 사용하고 싶은 사람
 - iOS 17 이전 버전의 직관적인 클래식 '사진' 앱 UI를 선호하는 사람
 
+<br>
+
 ---
+
+<br>
 
 ## 🛠️ 기술 스택
 |    범위     | 기술 이름                        |
@@ -34,19 +43,31 @@
 | 사진 라이브러리  | `PhotoKit`                   |
 |  내부 저장소   | `SwiftData`                  |
 
+<br>
+
 ---
+
+<br>
 
 ## 🔨 개발 환경
 ![Static Badge|67](https://img.shields.io/badge/Swift%206-%23F05138?logo=swift&logoColor=white)
 ![Static Badge|93](https://img.shields.io/badge/Xcode%2026%20~-%23147EFB?logo=xcode&logoColor=white)
 ![Static Badge|89](https://img.shields.io/badge/iOS%2017.0%20~%20-%23000000?logo=ios&logoColor=white)
 
+<br>
+
 ---
+
+<br>
 
 ## 👨‍💻 트러블 슈팅
 
 
+<br>
+
 ---
+
+<br>
 
 ## 📊 다이어그램
 ### 앱 전체 아키텍처 (TCA & Clean Architecture)
@@ -55,7 +76,11 @@
 ### 베스트 컷 채점 로직 (Scoring System Flow)
 
 
+<br>
+
 ---
+
+<br>
 
 ## 📱 주요 기능
 
