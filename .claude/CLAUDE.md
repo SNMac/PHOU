@@ -11,6 +11,8 @@ PHOU(PHOto for U)는 SwiftUI + TCA + 온디바이스 AI를 활용한 iOS/iPadOS 
 
 ## 빌드 및 실행
 
+**⚠️ 빌드 설정 주의**: `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`와 `SWIFT_APPROACHABLE_CONCURRENCY = YES`는 TCA `@Reducer` 매크로와 충돌하여 circular reference 오류를 발생시킵니다. 이 프로젝트에서는 두 설정을 제거한 상태로 유지합니다. (TCA 저자 공식 권고, GitHub Issue #3808)
+
 Xcode에서 `PHOU.xcodeproj`를 열어 빌드합니다.
 
 ```bash
@@ -30,10 +32,10 @@ xcodebuild -resolvePackageDependencies
 
 ### 프로젝트 구조
 
-- `Sources/Domain`: 비즈니스 로직 및 엔티티 (Interface, UseCase)
-- `Sources/Data`: 데이터 소스 및 저장소 구현 (SwiftData, PhotoKit Client)
-- `Sources/Presentation`: UI 및 TCA Reducer (Feature 단위 분리)
-- `Sources/Core`: 공통 유틸리티 및 AI 모델 (Vision, CoreML)
+- `PHOU/Domain`: 비즈니스 로직 및 엔티티 (Interface, UseCase)
+- `PHOU/Data`: 데이터 소스 및 저장소 구현 (SwiftData, PhotoKit Client)
+- `PHOU/Presentation`: UI 및 TCA Reducer (Feature 단위 분리)
+- `PHOU/Core`: 공통 유틸리티 및 AI 모델 (Vision, CoreML)
 
 ### TCA 패턴
 
@@ -47,7 +49,7 @@ xcodebuild -resolvePackageDependencies
 
 | 패키지 | 버전 | 용도 |
 |--------|------|------|
-| [swift-composable-architecture](https://github.com/pointfreeco/swift-composable-architecture) | ≥ 1.24.1 | 상태 관리 아키텍처 |
+| [swift-composable-architecture](https://github.com/pointfreeco/swift-composable-architecture) | ≥ 1.25.5 | 상태 관리 아키텍처 |
 
 ## 핵심 기술
 
@@ -62,7 +64,14 @@ xcodebuild -resolvePackageDependencies
 - **멀티태스킹**: Split View, Slide Over 환경에서도 레이아웃이 깨지지 않도록 유연한 레이아웃을 작성합니다.
 - **베스트 컷 비교 뷰**: 모달 대신 화면 분할 방식을 우선 고려합니다.
 - **그리드 UI**: `LazyVGrid`를 사용하며, 대용량 에셋 로드 시 메모리 해제를 위해 `onAppear`/`onDisappear` 최적화를 적용합니다.
+- **정사각형 그리드 셀**: `Color.clear.aspectRatio(1, contentMode: .fill).overlay { ... }.clipped()` 패턴 사용. `aspectRatio` 단독 사용 시 내부 Image의 비율과 충돌.
+- **PhotoKit import**: `@preconcurrency import Photos` — Swift 6 strict concurrency에서 Sendable 경고 억제 목적. 의도적 패턴.
+- **PHImageManager + withCheckedContinuation**: `isSynchronous = false` 시 핸들러가 여러 번 호출될 수 있으므로 `resumed` 플래그로 이중 resume 방지 필수.
 - **컴포넌트**: 재사용 가능한 UI 컴포넌트는 `Sources/Presentation/Components`에 위치시킵니다.
+
+## Git 컨벤션
+
+- **커밋 메시지**: `keyword: #[이슈번호] - [내용]` 형식 (예: `feat: #1 - Domain 엔티티 정의`)
 
 ## Swift 스타일 가이드
 
