@@ -1,13 +1,12 @@
 # Architecture Foundation — Task Checklist
 
-Last Updated: 2026-04-22 (2차 세션 종료, 빌드 미확인)
+Last Updated: 2026-04-22 (3차 세션 종료)
 
 ---
 
-## ⚠️ 현재 상태
+## 현재 상태
 
-빌드 오류 근본 원인 해결 완료, **Xcode에서 빌드 성공 여부 확인 필요**.
-다음 세션 시작 즉시 `⌘B` 실행.
+빌드 성공 ✅ 시뮬레이터 실행 확인 ✅
 
 ---
 
@@ -40,21 +39,21 @@ Last Updated: 2026-04-22 (2차 세션 종료, 빌드 미확인)
 
 ---
 
-## Phase 4 — GalleryFeature ⚠️
+## Phase 4 — GalleryFeature ✅
 
 - [x] `GalleryFeature.swift` — State/Action/Reducer 구현, `@Reducer` 유지
-- [x] `GalleryView.swift` — LazyVGrid, 권한 분기, 설정 링크
+- [x] `GalleryView.swift` — LazyVGrid 3열 고정, 정사각형 셀, 권한 분기, 설정 링크
 - [x] `PhotoThumbnailView.swift` — `.task(id:)` 자동 취소
-- [ ] **빌드 성공 후 시뮬레이터 사진 그리드 표시 확인**
+- [x] 시뮬레이터 사진 그리드 표시 확인
 - [ ] 권한 거부 시나리오 테스트
 
 ---
 
 ## Phase 5 — 앨범 탭 Stub ✅
 
-- [x] `AlbumFeature.swift` — `@Reducer` 복원, `body` 방식 (이번 세션)
+- [x] `AlbumFeature.swift` — `@Reducer` 복원, `body` 방식
 - [x] `AlbumView.swift` — ContentUnavailableView placeholder
-- [ ] **빌드 확인** ← 다음 세션 최우선
+- [x] 빌드 확인
 
 ---
 
@@ -69,11 +68,11 @@ Last Updated: 2026-04-22 (2차 세션 종료, 빌드 미확인)
 
 ---
 
-## 빌드 성공 후 남은 작업
+## 남은 작업
 
-- [ ] commit: `fix: SWIFT_DEFAULT_ACTOR_ISOLATION 제거 및 @Reducer 패턴 복원`
 - [ ] PR 생성 (`feature/#1-architecture-foundation` → `main`)
 - [ ] GitHub Issue #1 Close
+- [ ] 권한 거부 시나리오 테스트
 
 ---
 
@@ -88,4 +87,5 @@ Last Updated: 2026-04-22 (2차 세션 종료, 빌드 미확인)
 | `bfa26ce` | AlbumFeature Action placeholder (실패한 시도) |
 | `eb56e83` | Reduce 클로저 타입 추론 수정 (실패한 시도) |
 | `9b023be` | @Reducer 제거 + 수동 Reducer 준수 (잘못된 방향, 이번 세션에서 복원) |
-| *(미커밋)* | TCA 1.25.5 업데이트, SWIFT_DEFAULT_ACTOR_ISOLATION 제거, @Reducer 복원 |
+| `971a5ce` | TCA 1.25.5 업데이트, SWIFT_DEFAULT_ACTOR_ISOLATION 제거, @Reducer 복원 |
+| `ff768d8` | GalleryView 정사각형 그리드 수정 (Color.clear overlay 패턴) |

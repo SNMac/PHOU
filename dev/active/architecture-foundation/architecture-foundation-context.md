@@ -1,12 +1,12 @@
 # Architecture Foundation — Context & Key Decisions
 
-Last Updated: 2026-04-22 (2차 세션 종료 시점)
+Last Updated: 2026-04-22 (3차 세션 종료 시점)
 
 ---
 
 ## 현재 상태 요약
 
-**빌드 미확인** — 이번 세션에서 근본 원인을 해결했으나, Xcode에서 `⌘B` 빌드 성공 여부 아직 확인 필요.
+**빌드 성공** ✅ — 시뮬레이터 실행 확인. 갤러리 그리드 정사각형 수정 완료.
 
 ---
 
@@ -155,15 +155,36 @@ enum Action {
 
 ---
 
+## GalleryView 그리드 수정 (3차 세션)
+
+### 문제
+셀이 이미지 원본 비율로 렌더링 — 행 높이가 가장 큰 이미지 기준으로 확장됨
+
+### 원인
+`PhotoThumbnailView` 내부 `Image`의 `.aspectRatio(contentMode: .fill)`이  
+외부 `.aspectRatio(1, contentMode: .fill)`과 충돌하여 1:1 제약이 무시됨
+
+### 해결 패턴 (`GalleryView.swift`)
+```swift
+// 변경 전
+PhotoThumbnailView(id: asset.id)
+    .aspectRatio(1, contentMode: .fill)
+    .clipped()
+
+// 변경 후
+Color.clear
+    .aspectRatio(1, contentMode: .fill)
+    .overlay { PhotoThumbnailView(id: asset.id) }
+    .clipped()
+```
+`Color.clear`가 레이아웃 시스템에서 1:1 영역을 확보하고, `PhotoThumbnailView`는 그 위에 overlay로 채움.
+`GridItem(.adaptive)` → `GridItem(.flexible)` 3열 고정으로 변경.
+
+---
+
 ## 다음 세션 할 일
 
-### Step 1 — 빌드 확인 (최우선)
-Xcode 재시작 후 `⌘B`. 오류 발생 시 오류 전문을 확인.
-
-### Step 2 — 빌드 성공 시
-- [ ] commit: `fix: SWIFT_DEFAULT_ACTOR_ISOLATION 제거 및 @Reducer 패턴 복원`
 - [ ] PR 생성 (`feature/#1-architecture-foundation` → `main`)
 - [ ] GitHub Issue #1 Close
-
-### Step 3 — 빌드 실패 시 대안
-혹시 다른 오류가 남아 있을 경우 오류 메시지 전문을 다음 세션에 붙여넣기.
+- [ ] 권한 거부 시나리오 테스트
+- [ ] 시뮬레이터에서 전체 기능 검증
