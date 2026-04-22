@@ -17,6 +17,11 @@ struct AlbumFeature {
     }
 
     var body: some ReducerOf<Self> {
-        Reduce { _, _ in .none }
+        Reduce { state, action in
+            switch action {
+            case .onAppear:
+                return .none
+            }
+        }
     }
 }
