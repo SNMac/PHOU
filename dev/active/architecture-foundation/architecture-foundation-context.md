@@ -1,97 +1,169 @@
 # Architecture Foundation — Context & Key Decisions
 
-Last Updated: 2026-04-22
+Last Updated: 2026-04-22 (2차 세션 종료 시점)
 
 ---
 
-## 핵심 파일 위치
+## 현재 상태 요약
 
-| 파일 | 경로 | 역할 |
+**빌드 미확인** — 이번 세션에서 근본 원인을 해결했으나, Xcode에서 `⌘B` 빌드 성공 여부 아직 확인 필요.
+
+---
+
+## 구현 완료 파일
+
+| 파일 | 경로 | 상태 |
 |------|------|------|
-| 앱 진입점 | `PHOU/PHOUApp.swift` | Store 생성 및 AppView 주입 |
-| 현재 루트 뷰 | `PHOU/ContentView.swift` | Phase 3에서 삭제 대상 |
-| Xcode 프로젝트 | `PHOU.xcodeproj/project.pbxproj` | 직접 수정 불필요 (자동 동기화) |
+| 앱 진입점 | `PHOU/PHOUApp.swift` | ✅ 완료 |
+| Domain 엔티티 | `PHOU/Domain/Entity/` | ✅ 완료 (3개 파일) |
+| PhotoKit 클라이언트 | `PHOU/Data/Client/PhotoLibraryClient.swift` | ✅ 완료 |
+| 갤러리 Feature | `PHOU/Presentation/Gallery/GalleryFeature.swift` | ✅ @Reducer 유지 |
+| 갤러리 뷰 | `PHOU/Presentation/Gallery/GalleryView.swift` | ✅ 완료 |
+| 썸네일 뷰 | `PHOU/Presentation/Components/PhotoThumbnailView.swift` | ✅ 완료 |
+| 루트 Feature | `PHOU/Presentation/App/AppFeature.swift` | ✅ @Reducer 복원 |
+| 루트 뷰 | `PHOU/Presentation/App/AppView.swift` | ✅ 완료 |
+| 앨범 Feature | `PHOU/Presentation/Album/AlbumFeature.swift` | ✅ @Reducer 복원 |
+| 앨범 뷰 | `PHOU/Presentation/Album/AlbumView.swift` | ✅ 완료 |
 
 ---
 
-## 아키텍처 결정 사항
+## 2차 세션에서 해결한 문제
 
-### 1. PBXFileSystemSynchronizedRootGroup
-Xcode 16+의 자동 파일 동기화 기능 사용 중. `PHOU/` 폴더 하위에 파일/폴더를 만들면 pbxproj 수정 없이 자동으로 빌드 대상에 포함된다.
+### 근본 원인 확정
 
-**실천 방법**: 터미널 또는 Claude Code의 Write 도구로 Swift 파일 생성 → Xcode에서 즉시 인식.
+`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` + `SWIFT_APPROACHABLE_CONCURRENCY = YES` (Xcode 26 Beta 자동 설정)이 `@Reducer` 매크로와 충돌.
 
-### 2. PhotoAsset DTO 패턴
-`PHAsset`은 `Sendable`이 아니고 Main Thread 의존성이 있다. `PhotoLibraryClient.liveValue` 내부에서만 `PHAsset`을 다루고, 외부로는 반드시 `PhotoAsset` (순수 Swift struct) 으로 변환해서 내보낸다.
+**충돌 구조:**
+- 이 설정 → 모듈 내 모든 타입이 암시적 `@MainActor`
+- `@Reducer` 매크로 → `Reducer` 프로토콜 준수 코드를 `nonisolated`로 생성
+- `@MainActor` 타입 + `nonisolated` 요구사항 = circular reference
 
-```
-PHAsset (PhotoKit, Main Thread 의존) 
-  → [PhotoAsset] (Sendable struct, 레이어 경계)
-  → TCA State
-```
+**TCA 저자(Brandon Williams) 공식 입장** (GitHub Issue #3808):
+> "default main actor isolation just isn't that useful outside of an exploratory phase of building an app. It is largely incompatible with nearly every 3rd party library and even many of Apple's 1st party libraries. So I recommend turning that setting off."
 
-### 3. @DependencyClient 매크로
-TCA 1.9+부터 `@DependencyClient` 매크로로 보일러플레이트 제거. `liveValue` / `previewValue` / `testValue` 세 가지를 모두 구현해야 `#Preview`와 테스트 모두 작동.
+### 적용한 해결책
 
-### 4. Action 네이밍 컨벤션
+1. **TCA 1.25.5 업데이트** (사용자가 직접)
+2. **`project.pbxproj`에서 두 설정 제거** (Debug & Release 모두):
+   - `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`
+   - `SWIFT_APPROACHABLE_CONCURRENCY = YES`
+3. **`AppFeature.swift` — `@Reducer` 복원**:
+   - `extension AppFeature: Reducer` + `nonisolated var body` → `@Reducer struct AppFeature` 내부로 통합
+   - `@CasePathable` 제거 (`@Reducer` 매크로가 자동 생성)
+4. **`AlbumFeature.swift` — `@Reducer` 복원**:
+   - `extension AlbumFeature: Reducer` + `nonisolated func reduce` → `@Reducer struct AlbumFeature` 내부로 통합
+   - `reduce(into:action:)` → `body` 방식으로 변경 (GalleryFeature와 일관성)
+   - `@CasePathable` 제거
+
+### 롤백한 임시 워크어라운드
+
+- `PhotoLibraryClient.swift` `init(from:)` 의 `nonisolated` 제거 — 설정 제거로 불필요해짐
+
+---
+
+## 현재 코드 상태 (이번 세션 종료 기준)
+
+**AppFeature.swift:**
 ```swift
-enum Action {
-    case view(ViewAction)      // 사용자 인터랙션
-    case `internal`(InternalAction)  // 내부 로직, Effect 응답
-    case delegate(DelegateAction)    // 부모 Feature로 이벤트 전달
+@Reducer
+struct AppFeature {
+    enum Tab: Equatable { case gallery, album }
+
+    @ObservableState
+    struct State: Equatable {
+        var selectedTab: Tab = .gallery
+        var gallery = GalleryFeature.State()
+        var album = AlbumFeature.State()
+    }
+
+    enum Action {
+        case selectTab(Tab)
+        case gallery(GalleryFeature.Action)
+        case album(AlbumFeature.Action)
+    }
+
+    var body: some ReducerOf<Self> {
+        Scope(state: \.gallery, action: \.gallery) { GalleryFeature() }
+        Scope(state: \.album, action: \.album) { AlbumFeature() }
+        Reduce { state, action in
+            switch action {
+            case let .selectTab(tab):
+                state.selectedTab = tab
+                return .none
+            case .gallery, .album:
+                return .none
+            }
+        }
+    }
 }
 ```
-이 구조를 모든 Feature에 일관되게 적용한다.
 
-### 5. @ObservableState
-TCA 1.7+에서 도입된 `@ObservableState`를 사용. `@Bindable var store: StoreOf<Feature>`와 함께 쓰면 `ViewStore` 래핑 불필요. `WithViewStore`는 사용하지 않는다.
+**AlbumFeature.swift:**
+```swift
+@Reducer
+struct AlbumFeature {
+    @ObservableState
+    struct State: Equatable {}
 
-### 6. Swift 6 Strict Concurrency
-- `PHAsset` 관련 코드는 `@MainActor` 블록 내에서 처리
-- `PhotoLibraryClient` 내 클로저는 모두 `@Sendable` 마킹
-- `Actor` 격리 경계를 `PhotoLibraryClient`에서 처리하고 상위 레이어는 `async/await`만 사용
+    enum Action {
+        case onAppear
+    }
 
----
-
-## 외부 의존성
-
-| 패키지 | 버전 | 추가 방법 |
-|--------|------|----------|
-| ComposableArchitecture | ≥ 1.24.1 | ✅ 이미 추가됨 |
-| SwiftData | — | iOS 17+ 내장 |
-| PhotoKit (Photos.framework) | — | iOS 내장 |
-| Vision.framework | — | iOS 내장, Phase 후반 |
-| CoreML | — | iOS 내장, Phase 후반 |
-
-**추가 SPM 패키지 불필요** (현재 Phase 기준).
-
----
-
-## Info.plist 권한 키
-
-Phase 2에서 반드시 추가해야 할 항목:
-
-```xml
-<key>NSPhotoLibraryUsageDescription</key>
-<string>사진을 정리하려면 사진 라이브러리 접근이 필요합니다.</string>
-<key>NSPhotoLibraryAddUsageDescription</key>
-<string>정리된 사진을 앨범에 저장하려면 접근 권한이 필요합니다.</string>
+    var body: some ReducerOf<Self> {
+        Reduce { state, action in
+            switch action {
+            case .onAppear:
+                return .none
+            }
+        }
+    }
+}
 ```
 
-Xcode에서 `PHOU` 타겟 → Info 탭에서 추가하거나, `Info.plist` 파일에 직접 추가.
+---
+
+## 빌드 환경 정보
+
+- Xcode 26 Beta (`LastUpgradeCheck = 2640`)
+- Swift 6.0
+- **`SWIFT_DEFAULT_ACTOR_ISOLATION`**: 제거됨 ✅
+- **`SWIFT_APPROACHABLE_CONCURRENCY`**: 제거됨 ✅
+- TCA: **1.25.5** (이번 세션에서 업데이트)
+- iOS 17.0 Deployment Target
 
 ---
 
-## 알려진 함정
+## 코드 컨벤션 확정 사항
 
-1. **PHAuthorizationStatus `.limited`** — iOS 14+에서 선택적 접근 허용 시 발생. `fetchPhotos`에서 `.limited` 상태도 정상 처리해야 함.
-2. **썸네일 메모리 누수** — `PHImageManager.requestImage`는 캐시를 자동 관리하지 않음. `LazyVGrid`의 `onDisappear`에서 요청을 취소해야 함.
-3. **시뮬레이터 사진** — 시뮬레이터는 기본 사진 없음. `previewValue`에서 Mock 데이터를 제공하거나 시뮬레이터에 사진을 직접 추가.
+### @Reducer 패턴 (변경 없음 — 유지)
+- `@Reducer` 매크로 사용. `@CasePathable`, `@ObservableState` 통합 자동 생성
+- `extension`으로 분리하지 않고 struct 내부에 `body` 정의
+- `nonisolated` 수동 추가 금지
+
+### Action 네이밍 (GalleryFeature 기준)
+```swift
+enum Action {
+    case view(ViewAction)
+    case `internal`(InternalAction)
+}
+```
+- stub Feature는 단순 `case onAppear` 허용
+
+### PhotoKit 접근
+- `@preconcurrency import Photos` — Swift 6 strict concurrency에서 PhotoKit Sendable 경고 억제 목적. 의도적 패턴, 제거 금지
+- `PHAuthorizationStatus` → `PhotoAuthStatus` 변환은 `PhotoLibraryClient` 내부(`init(from:)`)에서만
 
 ---
 
-## 참고 자료
+## 다음 세션 할 일
 
-- TCA 공식 문서: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/
-- TCA Dependency 가이드: https://pointfreeco.github.io/swift-composable-architecture/main/documentation/composablearchitecture/dependencymanagement
-- PhotoKit 권한 처리: https://developer.apple.com/documentation/photokit/phphotolibrary/requestauthorization(for:handler:)
+### Step 1 — 빌드 확인 (최우선)
+Xcode 재시작 후 `⌘B`. 오류 발생 시 오류 전문을 확인.
+
+### Step 2 — 빌드 성공 시
+- [ ] commit: `fix: SWIFT_DEFAULT_ACTOR_ISOLATION 제거 및 @Reducer 패턴 복원`
+- [ ] PR 생성 (`feature/#1-architecture-foundation` → `main`)
+- [ ] GitHub Issue #1 Close
+
+### Step 3 — 빌드 실패 시 대안
+혹시 다른 오류가 남아 있을 경우 오류 메시지 전문을 다음 세션에 붙여넣기.

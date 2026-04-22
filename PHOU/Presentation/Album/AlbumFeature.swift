@@ -7,21 +7,21 @@
 
 import ComposableArchitecture
 
+@Reducer
 struct AlbumFeature {
     @ObservableState
     struct State: Equatable {}
 
-    @CasePathable
     enum Action {
         case onAppear
     }
-}
 
-extension AlbumFeature: Reducer {
-    nonisolated func reduce(into state: inout State, action: Action) -> Effect<Action> {
-        switch action {
-        case .onAppear:
-            return .none
+    var body: some ReducerOf<Self> {
+        Reduce { state, action in
+            switch action {
+            case .onAppear:
+                return .none
+            }
         }
     }
 }

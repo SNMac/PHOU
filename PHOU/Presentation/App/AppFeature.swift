@@ -7,6 +7,7 @@
 
 import ComposableArchitecture
 
+@Reducer
 struct AppFeature {
     enum Tab: Equatable { case gallery, album }
 
@@ -17,16 +18,13 @@ struct AppFeature {
         var album = AlbumFeature.State()
     }
 
-    @CasePathable
     enum Action {
         case selectTab(Tab)
         case gallery(GalleryFeature.Action)
         case album(AlbumFeature.Action)
     }
-}
 
-extension AppFeature: Reducer {
-    nonisolated var body: some ReducerOf<Self> {
+    var body: some ReducerOf<Self> {
         Scope(state: \.gallery, action: \.gallery) { GalleryFeature() }
         Scope(state: \.album, action: \.album) { AlbumFeature() }
         Reduce { state, action in

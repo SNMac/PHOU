@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		5B8FEC162F64713000186CD8 /* ComposableArchitecture in Frameworks */ = {isa = PBXBuildFile; productRef = 5B8FEC152F64713000186CD8 /* ComposableArchitecture */; };
+		5B4103DA2F9895AD00E7FB95 /* ComposableArchitecture in Frameworks */ = {isa = PBXBuildFile; productRef = 5B4103D92F9895AD00E7FB95 /* ComposableArchitecture */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,7 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5B8FEC162F64713000186CD8 /* ComposableArchitecture in Frameworks */,
+				5B4103DA2F9895AD00E7FB95 /* ComposableArchitecture in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -70,7 +70,7 @@
 			);
 			name = PHOU;
 			packageProductDependencies = (
-				5B8FEC152F64713000186CD8 /* ComposableArchitecture */,
+				5B4103D92F9895AD00E7FB95 /* ComposableArchitecture */,
 			);
 			productName = PHOU;
 			productReference = 5BB6D0072F56FA2D009CEA83 /* PHOU.app */;
@@ -84,7 +84,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2630;
-				LastUpgradeCheck = 2630;
+				LastUpgradeCheck = 2640;
 				TargetAttributes = {
 					5BB6D0062F56FA2D009CEA83 = {
 						CreatedOnToolsVersion = 26.3;
@@ -92,16 +92,16 @@
 				};
 			};
 			buildConfigurationList = 5BB6D0022F56FA2D009CEA83 /* Build configuration list for PBXProject "PHOU" */;
-			developmentRegion = en;
+			developmentRegion = ko;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
 				Base,
+				ko,
 			);
 			mainGroup = 5BB6CFFE2F56FA2D009CEA83;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				5B8FEC142F64713000186CD8 /* XCRemoteSwiftPackageReference "swift-composable-architecture" */,
+				5B4103D82F9895AD00E7FB95 /* XCRemoteSwiftPackageReference "swift-composable-architecture" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5BB6D0082F56FA2D009CEA83 /* Products */;
@@ -193,7 +193,9 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = NO;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -250,6 +252,8 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = NO;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -285,8 +289,6 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
@@ -324,8 +326,6 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
@@ -357,20 +357,20 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		5B8FEC142F64713000186CD8 /* XCRemoteSwiftPackageReference "swift-composable-architecture" */ = {
+		5B4103D82F9895AD00E7FB95 /* XCRemoteSwiftPackageReference "swift-composable-architecture" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pointfreeco/swift-composable-architecture";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 1.24.1;
+				minimumVersion = 1.25.5;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		5B8FEC152F64713000186CD8 /* ComposableArchitecture */ = {
+		5B4103D92F9895AD00E7FB95 /* ComposableArchitecture */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 5B8FEC142F64713000186CD8 /* XCRemoteSwiftPackageReference "swift-composable-architecture" */;
+			package = 5B4103D82F9895AD00E7FB95 /* XCRemoteSwiftPackageReference "swift-composable-architecture" */;
 			productName = ComposableArchitecture;
 		};
 /* End XCSwiftPackageProductDependency section */

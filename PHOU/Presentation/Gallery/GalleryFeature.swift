@@ -5,6 +5,7 @@
 //  Created by 서동환 on 4/22/26.
 //
 
+import Foundation
 import ComposableArchitecture
 
 @Reducer

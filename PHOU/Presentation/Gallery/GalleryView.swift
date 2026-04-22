@@ -5,8 +5,8 @@
 //  Created by 서동환 on 4/22/26.
 //
 
-import ComposableArchitecture
 import SwiftUI
+import ComposableArchitecture
 
 struct GalleryView: View {
     let store: StoreOf<GalleryFeature>
