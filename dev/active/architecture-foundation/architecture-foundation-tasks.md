@@ -60,12 +60,12 @@ Last Updated: 2026-04-22 (5차 세션 종료)
 
 ## 빌드 오류 해결 이력
 
-| 커밋/세션 | 시도 | 결과 |
-|-----------|------|------|
-| `bfa26ce` | 빈 Action enum → `case onAppear` 추가 | 실패 |
-| `eb56e83` | `Reduce { _, _ in .none }` → 명시적 switch | 실패 |
-| `9b023be` | AlbumFeature/AppFeature @Reducer 제거 + 수동 준수 | 잘못된 방향 |
-| 2차 세션 | TCA 1.25.5 업데이트 + SWIFT_DEFAULT_ACTOR_ISOLATION 제거 | **확인 중** |
+| 커밋/세션     | 시도                                                 | 결과       |
+| --------- | -------------------------------------------------- | -------- |
+| `bfa26ce` | 빈 Action enum → `case onAppear` 추가                 | 실패       |
+| `eb56e83` | `Reduce { _, _ in .none }` → 명시적 switch            | 실패       |
+| `9b023be` | AlbumFeature/AppFeature @Reducer 제거 + 수동 준수        | 잘못된 방향   |
+| 2차 세션     | TCA 1.25.5 업데이트 + SWIFT_DEFAULT_ACTOR_ISOLATION 제거 | **성공** ✅  |
 
 ---
 
