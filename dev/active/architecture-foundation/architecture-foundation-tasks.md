@@ -35,7 +35,7 @@ Last Updated: 2026-04-22 (5차 세션 종료)
 - [x] `AppView.swift` — TabView, @Bindable 패턴
 - [x] `PHOUApp.swift` 교체
 - [x] `ContentView.swift` 삭제
-- [ ] **빌드 확인** ← 다음 세션 최우선
+- [x] **빌드 확인** ← 다음 세션 최우선
 
 ---
 
@@ -45,8 +45,8 @@ Last Updated: 2026-04-22 (5차 세션 종료)
 - [x] `GalleryView.swift` — LazyVGrid 3열 고정, 정사각형 셀, 권한 분기, 설정 링크
 - [x] `PhotoThumbnailView.swift` — `.task(id:)` 자동 취소
 - [x] 시뮬레이터 사진 그리드 표시 확인
-- [x] 권한 거부(`denied`) 시나리오 테스트 — "사진 접근 권한 없음" + "설정 열기" 정상 표시
-- [x] 접근 제한(`limited`) 동작 확인 — `.authorized`와 동일 처리, 선택된 사진만 표시됨
+- [x] 권한 거부(`denied`) 시나리오 테스트 — "사진에 접근할 권한이 없어요" + "설정 열기" 정상 표시
+- [x] 접근 제한(`limited`) 안내 배너 추가 — 그리드 하단에 "접근 가능한 사진이 제한되어 있어요" 표시
 
 ---
 
@@ -71,9 +71,9 @@ Last Updated: 2026-04-22 (5차 세션 종료)
 
 ## 남은 작업
 
-- [ ] PR #2 Merge
-- [ ] GitHub Issue #1 Close
-- [ ] (선택) `.limited` 상태 사용자 안내 UI 추가 여부 결정 — Issue로 등록 고려
+- [x] PR #2 Merge
+- [x] GitHub Issue #1 Close
+- [x] `.limited` 상태 사용자 안내 배너 구현 완료
 
 ---
 
@@ -91,3 +91,4 @@ Last Updated: 2026-04-22 (5차 세션 종료)
 | `971a5ce` | TCA 1.25.5 업데이트, SWIFT_DEFAULT_ACTOR_ISOLATION 제거, @Reducer 복원 |
 | `ff768d8` | GalleryView 정사각형 그리드 수정 (Color.clear overlay 패턴) |
 | `2ae591b` | withCheckedContinuation 이중 resume 방지 (코드 리뷰 반영) |
+| `d6ce2e4` | .limited 안내 배너 추가, denied 문구 어투 통일 |
