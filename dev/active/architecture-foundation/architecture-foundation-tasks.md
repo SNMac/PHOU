@@ -1,6 +1,6 @@
 # Architecture Foundation — Task Checklist
 
-Last Updated: 2026-04-22 (4차 세션 종료)
+Last Updated: 2026-04-22 (5차 세션 종료)
 
 ---
 
@@ -45,7 +45,8 @@ Last Updated: 2026-04-22 (4차 세션 종료)
 - [x] `GalleryView.swift` — LazyVGrid 3열 고정, 정사각형 셀, 권한 분기, 설정 링크
 - [x] `PhotoThumbnailView.swift` — `.task(id:)` 자동 취소
 - [x] 시뮬레이터 사진 그리드 표시 확인
-- [ ] 권한 거부 시나리오 테스트
+- [x] 권한 거부(`denied`) 시나리오 테스트 — "사진 접근 권한 없음" + "설정 열기" 정상 표시
+- [x] 접근 제한(`limited`) 동작 확인 — `.authorized`와 동일 처리, 선택된 사진만 표시됨
 
 ---
 
@@ -72,7 +73,7 @@ Last Updated: 2026-04-22 (4차 세션 종료)
 
 - [ ] PR #2 Merge
 - [ ] GitHub Issue #1 Close
-- [ ] 권한 거부 시나리오 테스트
+- [ ] (선택) `.limited` 상태 사용자 안내 UI 추가 여부 결정 — Issue로 등록 고려
 
 ---
 
