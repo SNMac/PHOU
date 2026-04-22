@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트 개요
 
-PHOU(PHOto for U)는 SwiftUI + TCA + 온디바이스 AI를 활용한 iOS/iPadOS 갤러리·사진 정리 앱입니다.
+PHOU(PHoto Organizer for U)는 SwiftUI + TCA + 온디바이스 AI를 활용한 iOS/iPadOS 갤러리·사진 정리 앱입니다.
 
 - **플랫폼**: iOS/iPadOS 17.0+, Swift 6.0
 - **번들 ID**: com.snmac.PHOU
