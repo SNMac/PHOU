@@ -2,7 +2,7 @@
 //  PhotoLibraryClient.swift
 //  PHOU
 //
-//  Created by 서동환 on 4/22/26.
+//  Created by 서동환 on 4/23/26.
 //
 
 @preconcurrency import Photos
@@ -12,6 +12,7 @@ import ComposableArchitecture
 struct PhotoLibraryClient: Sendable {
     var requestAuthorization: @Sendable () async -> PhotoAuthStatus = { .notDetermined }
     var fetchPhotos: @Sendable () async throws -> [PhotoAsset] = { [] }
+    var fetchAssetsInAlbum: @Sendable (_ albumId: String) async throws -> [PhotoAsset] = { _ in [] }
     var fetchAlbums: @Sendable () async throws -> [AlbumGroup] = { [] }
     var deleteAssets: @Sendable (_ ids: [String]) async throws -> Void = { _ in }
 }
@@ -26,6 +27,28 @@ extension PhotoLibraryClient: DependencyKey {
             let options = PHFetchOptions()
             options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
             let result = PHAsset.fetchAssets(with: .image, options: options)
+            var assets: [PhotoAsset] = []
+            result.enumerateObjects { asset, _, _ in
+                assets.append(PhotoAsset(
+                    id: asset.localIdentifier,
+                    creationDate: asset.creationDate,
+                    isFavorite: asset.isFavorite,
+                    mediaType: .image
+                ))
+            }
+            return assets
+        },
+        fetchAssetsInAlbum: { albumId in
+            let collections = PHAssetCollection.fetchAssetCollections(
+                withLocalIdentifiers: [albumId],
+                options: nil
+            )
+            guard let collection = collections.firstObject else { return [] }
+
+            let options = PHFetchOptions()
+            options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+
+            let result = PHAsset.fetchAssets(in: collection, options: options)
             var assets: [PhotoAsset] = []
             result.enumerateObjects { asset, _, _ in
                 assets.append(PhotoAsset(
@@ -89,6 +112,16 @@ extension PhotoLibraryClient: DependencyKey {
                 )
             }
         },
+        fetchAssetsInAlbum: { _ in
+            (0..<12).map { i in
+                PhotoAsset(
+                    id: "preview-album-\(i)",
+                    creationDate: Calendar.current.date(byAdding: .day, value: -i, to: Date()),
+                    isFavorite: i == 0,
+                    mediaType: .image
+                )
+            }
+        },
         fetchAlbums: {
             [
                 AlbumGroup(id: "recents", title: "최근 항목", assetCount: 12, coverAssetId: "preview-0", albumType: .smartAlbum),
@@ -124,4 +157,17 @@ private func firstAssetId(in collection: PHAssetCollection) -> String? {
     options.fetchLimit = 1
     options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
     return PHAsset.fetchAssets(in: collection, options: options).firstObject?.localIdentifier
+}
+
+private extension PhotoAsset.MediaType {
+    init(from mediaType: PHAssetMediaType) {
+        switch mediaType {
+        case .image:
+            self = .image
+        case .video:
+            self = .video
+        default:
+            self = .unknown
+        }
+    }
 }
