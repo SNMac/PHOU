@@ -39,12 +39,15 @@ struct PhotoThumbnailView: View {
         options.isSynchronous = false
 
         return await withCheckedContinuation { continuation in
+            var resumed = false
             PHImageManager.default().requestImage(
                 for: asset,
                 targetSize: Self.targetSize,
                 contentMode: .aspectFill,
                 options: options
             ) { result, _ in
+                guard !resumed else { return }
+                resumed = true
                 continuation.resume(returning: result)
             }
         }
