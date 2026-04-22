@@ -149,6 +149,9 @@ xcuserdata
 .obsidian/cache
 .obsidian/appearance.json
 
+# Worktrees
+.worktrees/
+
 # Start of SNMac custom gitignore
 .claude/cache
 .claude/settings.local.json
