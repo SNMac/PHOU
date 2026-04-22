@@ -1,12 +1,10 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+# PHOU(PHoto Organizer for U)
 
 ## 프로젝트 개요
 
 PHOU(PHoto Organizer for U)는 SwiftUI + TCA + 온디바이스 AI를 활용한 iOS/iPadOS 갤러리·사진 정리 앱입니다.
 
-- **플랫폼**: iOS/iPadOS 17.0+, Swift 6.0
+- **플랫폼**: iOS/iPadOS 17.0+, Swift 6
 - **번들 ID**: com.snmac.PHOU
 
 ## 빌드 및 실행
@@ -16,11 +14,11 @@ PHOU(PHoto Organizer for U)는 SwiftUI + TCA + 온디바이스 AI를 활용한 i
 Xcode에서 `PHOU.xcodeproj`를 열어 빌드합니다.
 
 ```bash
-# CLI 빌드 (시뮬레이터)
-xcodebuild -project PHOU.xcodeproj -scheme PHOU -destination 'platform=iOS Simulator,name=iPhone 13 mini,OS=17.0' build
+# CLI 빌드 (시뮬레이터) — xcodeproj는 반드시 PHOU/PHOU/PHOU.xcodeproj 경로 사용
+xcodebuild -project PHOU/PHOU/PHOU.xcodeproj -scheme PHOU -destination 'platform=iOS Simulator,name=iPhone 13 mini,OS=17.0' build
 
 # 테스트 실행 (Swift Testing 사용)
-xcodebuild -project PHOU.xcodeproj -scheme PHOU -destination 'platform=iOS Simulator,name=iPhone 13 mini,OS=17.0' test
+xcodebuild -project PHOU/PHOU/PHOU.xcodeproj -scheme PHOU -destination 'platform=iOS Simulator,name=iPhone 13 mini,OS=17.0' test
 
 # 의존성 갱신
 xcodebuild -resolvePackageDependencies
@@ -43,6 +41,9 @@ xcodebuild -resolvePackageDependencies
 - **Action**: Enum으로 정의하며, 유저 인터랙션(`view`), 내부 로직(`internal`), 의존성 응답(`delegate`)으로 명확히 네이밍합니다.
 - **Reducer**: `Reduce` 클로저 내에서 로직을 처리하며, Side Effect는 `Dependency`를 통해서만 수행합니다.
 - **View**: `@Bindable`을 사용하여 Store와 연결합니다. (TCA 1.0+ 최신 문법 지향)
+- **`$store.scope` 사용 View**: `.navigationDestination(item: $store.scope(...))` 등을 쓰는 View는 `let store` 대신 `@Bindable var store` 선언 필요.
+- **`@Presents` 매크로**: `@ObservableState` 내 프레젠테이션 상태는 `@PresentationState` 대신 `@Presents` 사용. (`@PresentationState`는 `@ObservableState`와 충돌하여 컴파일 오류 발생)
+- **`import Foundation` 명시**: `error.localizedDescription` 등 Foundation API를 사용하는 Reducer 파일에는 `import Foundation` 별도 추가 필요.
 - **의존성 주입**: TCA의 `@Dependency`를 통해 Repository를 주입하여 테스트 가능성을 확보합니다.
 
 ## 주요 의존성 (SPM)
@@ -67,6 +68,7 @@ xcodebuild -resolvePackageDependencies
 - **정사각형 그리드 셀**: `Color.clear.aspectRatio(1, contentMode: .fill).overlay { ... }.clipped()` 패턴 사용. `aspectRatio` 단독 사용 시 내부 Image의 비율과 충돌.
 - **PhotoKit import**: `@preconcurrency import Photos` — Swift 6 strict concurrency에서 Sendable 경고 억제 목적. 의도적 패턴.
 - **PHImageManager + withCheckedContinuation**: `isSynchronous = false` 시 핸들러가 여러 번 호출될 수 있으므로 `resumed` 플래그로 이중 resume 방지 필수.
+- **`cornerRadius` deprecated**: `.cornerRadius(_:)` 는 iOS 16부터 deprecated. 항상 `.clipShape(RoundedRectangle(cornerRadius:))` 사용.
 - **컴포넌트**: 재사용 가능한 UI 컴포넌트는 `Sources/Presentation/Components`에 위치시킵니다.
 
 ## Git 컨벤션
@@ -87,3 +89,11 @@ xcodebuild -resolvePackageDependencies
 3. **최종 확인 뷰** — 삭제 대상 사진 일괄 검토 및 삭제
 4. **앨범 탭** — 시스템 기본 앨범 및 사용자 앨범 목록
 5. **AI 키워드 검색** — 인터넷 없이 온디바이스에서 자연어로 사진 검색
+
+## Agent Working Rules
+
+- 관련 파일 먼저 읽고 수정
+- 최소 수정 우선
+- 여러 파일 수정 시 계획 먼저 설명
+- 빌드 깨지면 즉시 복구
+- 기존 패턴 우선
