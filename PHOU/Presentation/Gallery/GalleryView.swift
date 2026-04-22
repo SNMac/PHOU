@@ -11,7 +11,11 @@ import ComposableArchitecture
 struct GalleryView: View {
     let store: StoreOf<GalleryFeature>
 
-    private let columns = [GridItem(.adaptive(minimum: 110), spacing: 2)]
+    private let columns = [
+        GridItem(.flexible(), spacing: 2),
+        GridItem(.flexible(), spacing: 2),
+        GridItem(.flexible(), spacing: 2)
+    ]
 
     var body: some View {
         NavigationStack {
@@ -43,8 +47,9 @@ struct GalleryView: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 2) {
                 ForEach(store.photos) { asset in
-                    PhotoThumbnailView(id: asset.id)
+                    Color.clear
                         .aspectRatio(1, contentMode: .fill)
+                        .overlay { PhotoThumbnailView(id: asset.id) }
                         .clipped()
                 }
             }
