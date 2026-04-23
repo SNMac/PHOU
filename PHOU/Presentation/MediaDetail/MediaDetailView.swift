@@ -10,13 +10,18 @@ import UIKit
 import ComposableArchitecture
 
 struct MediaDetailView: View {
+    private enum ScrollAnchor: Hashable {
+        case media(String)
+        case details(String)
+    }
+
     @Bindable var store: StoreOf<MediaDetailFeature>
     let transitionNamespace: Namespace.ID?
 
     private let chromeAnimation = Animation.easeInOut(duration: 0.24)
 
     @State private var usesImmersiveBackground = false
-    @State private var showsDetailsPanel = false
+    @State private var scrollAnchor: ScrollAnchor?
     @State private var currentDetails: MediaAssetDetails?
     @State private var shareItems: [Any] = []
     @State private var isPreparingShare = false
@@ -37,6 +42,18 @@ struct MediaDetailView: View {
 
     private var backgroundColor: Color {
         usesImmersiveBackground ? .black : Color(uiColor: .systemBackground)
+    }
+
+    private var mediaScrollAnchor: ScrollAnchor {
+        .media(currentAssetID)
+    }
+
+    private var detailsScrollAnchor: ScrollAnchor {
+        .details(currentAssetID)
+    }
+
+    private var isShowingDetailsSection: Bool {
+        scrollAnchor == detailsScrollAnchor
     }
 
     private var displayedDetails: MediaAssetDetails? {
@@ -110,9 +127,7 @@ struct MediaDetailView: View {
             GeometryReader { proxy in
                 let layout = MediaDetailLayout(
                     containerSize: proxy.size,
-                    safeAreaInsets: proxy.safeAreaInsets,
-                    usesImmersiveBackground: usesImmersiveBackground,
-                    showsDetailsPanel: showsDetailsPanel
+                    safeAreaInsets: proxy.safeAreaInsets
                 )
 
                 ZStack {
@@ -120,22 +135,11 @@ struct MediaDetailView: View {
                         .ignoresSafeArea()
 
                     self.content(layout: layout)
-                        .offset(y: showsDetailsPanel ? -layout.mediaLift : 0)
-                        .animation(chromeAnimation, value: showsDetailsPanel)
-                        .animation(chromeAnimation, value: usesImmersiveBackground)
-
-                    detailsPanel(layout: layout)
                 }
-                .contentShape(Rectangle())
-                .simultaneousGesture(detailsRevealGesture)
                 .animation(chromeAnimation, value: usesImmersiveBackground)
-                .animation(chromeAnimation, value: showsDetailsPanel)
                 .statusBarHidden(usesImmersiveBackground)
                 .toolbar(usesImmersiveBackground ? .hidden : .visible, for: .navigationBar)
-                .toolbar(
-                    usesImmersiveBackground || showsDetailsPanel ? .hidden : .visible,
-                    for: .bottomBar
-                )
+                .toolbar(usesImmersiveBackground ? .hidden : .visible, for: .bottomBar)
                 .toolbarBackgroundVisibility(.automatic, for: .navigationBar, .bottomBar)
                 .toolbar {
                     mediaDetailToolbar
@@ -143,15 +147,15 @@ struct MediaDetailView: View {
                 .toolbarTitleDisplayMode(.inline)
                 .navigationBarBackButtonHidden()
                 .onChange(of: currentAssetID) { _, _ in
-                    showsDetailsPanel = false
+                    scrollAnchor = mediaScrollAnchor
                 }
                 .onChange(of: usesImmersiveBackground) { _, isImmersive in
                     if isImmersive {
-                        showsDetailsPanel = false
+                        scrollAnchor = mediaScrollAnchor
                     }
                 }
                 .task(id: detailsPanelTaskID) {
-                    guard showsDetailsPanel else { return }
+                    guard isShowingDetailsSection else { return }
                     await loadExpandedDetails()
                 }
             }
@@ -167,6 +171,28 @@ struct MediaDetailView: View {
 
     @ViewBuilder
     private func content(layout: MediaDetailLayout) -> some View {
+        ScrollView(.vertical) {
+            LazyVStack(spacing: 0) {
+                mediaPager(layout: layout)
+                    .frame(height: layout.viewportSize.height)
+                    .id(mediaScrollAnchor)
+
+                detailsSection(layout: layout)
+                    .id(detailsScrollAnchor)
+            }
+            .scrollTargetLayout()
+        }
+        .ignoresSafeArea(edges: .top)
+        .scrollIndicators(.hidden)
+        .scrollTargetBehavior(.viewAligned)
+        .scrollPosition(id: $scrollAnchor, anchor: .top)
+        .task(id: currentAssetID) {
+            scrollAnchor = mediaScrollAnchor
+        }
+    }
+
+    @ViewBuilder
+    private func mediaPager(layout: MediaDetailLayout) -> some View {
         TabView(
             selection: Binding(
                 get: { store.currentIndex },
@@ -186,17 +212,14 @@ struct MediaDetailView: View {
                 .frame(height: layout.viewportSize.height)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .tag(index)
+                .contentShape(Rectangle())
+                .simultaneousGesture(detailsRevealGesture)
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
-        .ignoresSafeArea()
     }
 
     private func toggleBackground() {
-        if showsDetailsPanel {
-            closeDetailsPanel()
-        }
-
         withAnimation(chromeAnimation) {
             usesImmersiveBackground.toggle()
         }
@@ -234,7 +257,12 @@ struct MediaDetailView: View {
     }
 
     private func presentInfo() {
-        openDetailsPanel()
+        if isShowingDetailsSection {
+            scrollToMedia()
+            return
+        }
+
+        scrollToDetails()
     }
 
     private func presentUnavailableAdjustment(_ message: String) {
@@ -409,12 +437,10 @@ struct MediaDetailView: View {
     }
 
     @ViewBuilder
-    private func detailsPanel(layout: MediaDetailLayout) -> some View {
-        MediaDetailsPanel(
+    private func detailsSection(layout: MediaDetailLayout) -> some View {
+        MediaDetailsScrollSection(
             details: displayedDetails ?? currentAsset.map(MediaAssetDetails.placeholder),
-            layout: layout,
-            isPresented: showsDetailsPanel,
-            onDismiss: closeDetailsPanel
+            layout: layout
         )
     }
 
@@ -422,16 +448,14 @@ struct MediaDetailView: View {
         DragGesture(minimumDistance: 24)
             .onEnded { value in
                 guard abs(value.translation.height) > abs(value.translation.width) else { return }
-
-                if value.translation.height < -72 {
-                    openDetailsPanel()
-                } else if value.translation.height > 72, showsDetailsPanel {
-                    closeDetailsPanel()
+                guard value.translation.height < -72 else { return }
+                if !isShowingDetailsSection {
+                    scrollToDetails()
                 }
             }
     }
 
-    private func openDetailsPanel() {
+    private func scrollToDetails() {
         if usesImmersiveBackground {
             withAnimation(chromeAnimation) {
                 usesImmersiveBackground = false
@@ -439,18 +463,18 @@ struct MediaDetailView: View {
         }
 
         withAnimation(chromeAnimation) {
-            showsDetailsPanel = true
+            scrollAnchor = detailsScrollAnchor
         }
     }
 
-    private func closeDetailsPanel() {
+    private func scrollToMedia() {
         withAnimation(chromeAnimation) {
-            showsDetailsPanel = false
+            scrollAnchor = mediaScrollAnchor
         }
     }
 
     private var detailsPanelTaskID: String {
-        "\(currentAssetID)-\(showsDetailsPanel)"
+        "\(currentAssetID)-\(isShowingDetailsSection)"
     }
 
 }

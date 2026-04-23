@@ -7,11 +7,9 @@
 
 import SwiftUI
 
-struct MediaDetailsPanel: View {
+struct MediaDetailsScrollSection: View {
     let details: MediaAssetDetails?
     let layout: MediaDetailLayout
-    let isPresented: Bool
-    let onDismiss: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,38 +20,24 @@ struct MediaDetailsPanel: View {
                 .padding(.bottom, 16)
 
             if let details {
-                ScrollView(showsIndicators: false) {
-                    MediaInlineInfoContent(details: details)
-                        .padding(.bottom, 120)
-                }
+                MediaInlineInfoContent(details: details)
+                    .padding(.bottom, layout.detailsBottomPadding)
             } else {
                 ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 48)
             }
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: layout.panelHeight, alignment: .top)
-        .background(.ultraThinMaterial)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .frame(minHeight: layout.detailsSectionMinHeight, alignment: .top)
+        .background(Color(uiColor: .systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(Color.white.opacity(0.12))
+                .fill(Color.primary.opacity(0.08))
                 .frame(height: 0.5)
                 .padding(.top, 54)
         }
-        .offset(y: isPresented ? 0 : layout.panelHiddenOffset)
-        .opacity(isPresented ? 1 : 0.001)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .allowsHitTesting(isPresented)
-        .highPriorityGesture(detailsDismissGesture)
-    }
-
-    private var detailsDismissGesture: some Gesture {
-        DragGesture(minimumDistance: 20)
-            .onEnded { value in
-                guard value.translation.height > 48 else { return }
-                onDismiss()
-            }
     }
 }
 
@@ -100,8 +84,6 @@ private struct MediaInlineInfoContent: View {
 struct MediaDetailLayout {
     let containerSize: CGSize
     let safeAreaInsets: EdgeInsets
-    let usesImmersiveBackground: Bool
-    let showsDetailsPanel: Bool
 
     var viewportSize: CGSize {
         CGSize(
@@ -110,16 +92,12 @@ struct MediaDetailLayout {
         )
     }
 
-    var panelHeight: CGFloat {
-        min(max(containerSize.height * 0.46, 300), 430)
+    var detailsSectionMinHeight: CGFloat {
+        max(containerSize.height * 0.72, 520)
     }
 
-    var panelHiddenOffset: CGFloat {
-        panelHeight + safeAreaInsets.bottom + 24
-    }
-
-    var mediaLift: CGFloat {
-        min(panelHeight * 0.22, 88)
+    var detailsBottomPadding: CGFloat {
+        max(safeAreaInsets.bottom + 96, 120)
     }
 }
 
