@@ -191,10 +191,11 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 하지만 user report 기준으로 레이아웃 문제는 여전히 해결되지 않았고, runtime 중 `Adding 'UIKitToolbar' as a subview of UIHostingController.view is not supported...` 경고가 새로 관찰됨
 - runtime 중 함께 관찰된 `Error returned from daemon: Error Domain=com.apple.accounts Code=7 "(null)"` 및 `CMPhotoJFIFUtilities err=-17102` 로그는 현재 코드 변경과 직접 연관인지 불명확함
 - 가장 최근 세션에서는 세로 사진이 normal 모드에서 immersive보다 더 작게 보이는 문제를 줄이기 위해 `MediaDetailLayout.viewportSize`가 toolbar reserve를 빼지 않고 전체 container 크기를 쓰도록 다시 단순화함
-- 가장 최근 세션에서는 iOS 18에서 하단 toolbar 아이템이 왼쪽으로 몰리는 문제를 우회하기 위해, iOS 18 경로만 `legacyBottomToolbarRow`라는 단일 full-width `HStack`으로 share / center group / delete를 직접 배치하도록 조정함
+- 가장 최근 세션에서는 사용자의 디자인 의도에 맞춰 하단 액션도 다시 `ToolbarItem` 기반으로 유지하고, iOS 18에서는 `bottomBar` + `status` placement 조합으로 `share+favorite / info / crop+delete` 3구역에 가깝게 재배치함
 - 가장 최근 세션에서는 favorite 버튼의 기본 검정 tint를 제거하고, non-favorite는 accent color, favorite는 pink tint가 되도록 보정함
-- 가장 최근 세션에서는 동영상 레터박스를 줄이기 위해 `AVPlayerViewController.videoGravity`를 `.resizeAspectFill`로 바꾸고 controller view에 `clipsToBounds`를 추가함
+- 가장 최근 세션에서는 동영상이 과하게 확대되어 보이는 문제를 줄이기 위해 `AVPlayerViewController`를 제거하고, `AVPlayerLayer.videoGravity = .resizeAspect`를 쓰는 경량 player view로 교체함
 - 가장 최근 세션에서는 실기기에서 라이브러리 규모가 큰 경우 상세 뷰 진입/전환이 느려질 수 있다는 가설 하에, `MediaDetailFeature.State`의 `Equatable` 비교를 전체 `items` 배열 대신 현재 index/current asset snapshot 중심으로 줄이는 최적화를 추가함
+- 가장 최근 세션에서는 `TabView` 콘텐츠 전체를 항상 `ignoresSafeArea()` 하도록 바꿔, normal/immersive 전환이 미디어 크기를 바꾸지 않고 배경/UI visibility만 바꾸도록 정리함
 
 ### 5. 이번 사용자 피드백으로 scope가 다시 바뀜
 
@@ -231,9 +232,11 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
   - 최신 수정: iOS 26에서 `ToolbarSpacer`와 `.sharedBackgroundVisibility(.hidden)`를 써서 Liquid Glass grouping을 실험
   - 최신 수정: viewport width를 safe area 기준으로 다시 계산하고, zoom reset은 실제 scroll view bounds를 기준으로 맞추도록 변경
   - 최신 수정: portrait photo가 normal/immersive에서 같은 fit size를 갖도록 viewport reserve 계산 제거
-  - 최신 수정: iOS 18 경로에 한해 하단 toolbar를 single-row `HStack`으로 재배치
+  - 최신 수정: 하단 액션도 다시 `ToolbarItem` 기반으로 유지하고, iOS 18에서는 `bottomBar` + `status` placement 조합으로 재배치
   - 최신 수정: favorite 버튼 tint 보정
-  - 최신 수정: video gravity를 `.resizeAspectFill`로 바꿔 letterbox 제거 시도
+  - 최신 수정: `AVPlayerViewController`를 제거하고 `AVPlayerLayer` 기반 player view로 단순화
+  - 최신 수정: video gravity를 `.resizeAspect`로 바꿔 과도한 확대 없이 가로나 세로 한 축이 꽉 차게 표시
+  - 최신 수정: `TabView` 콘텐츠를 항상 safe area 밖까지 확장해 immersive가 UI/background만 숨기도록 정리
 - `PHOU/Presentation/MediaDetail/MediaDetailFeature.swift`
   - 최신 수정: 대규모 라이브러리에서 상세 뷰 state 비교 비용을 줄이기 위해 `Equatable`을 current item 중심으로 축소
 - `PHOU/Presentation/MediaDetail/MediaDetailSupport.swift`
@@ -269,16 +272,33 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
   - iPhone 13 mini에서 상세 뷰 레이아웃이 더 쉽게 깨짐
 - 사용자 최신 피드백 기준 추가 재검증 필요 항목:
   - 세로 사진은 normal/immersive가 사실상 같은 크기로 보여야 함
-  - iOS 18 하단 toolbar는 왼쪽-가운데-오른쪽 3분 배치가 안정적으로 나와야 함
+  - iOS 18 하단 `ToolbarItem` 배치는 `share+favorite / info / crop+delete` 3구역에 가깝게 안정적으로 나와야 함
   - 실기기에서만 상세 뷰 진입/사진 간 전환/normal↔immersive 전환/dismiss가 심하게 느림
-  - 동영상 letterbox 제거가 실제 기기에서 충분한지 미확인
+  - 동영상이 크롭 없이 safe-area 무시 full-bleed 프레임 안에서 기대한 aspect-fit으로 보이는지 미확인
 - system toolbar 전환 후 runtime 경고:
   - `Adding 'UIKitToolbar' as a subview of UIHostingController.view is not supported and may result in a broken view hierarchy.`
-- 위 경고는 `fullScreenCover`로 띄운 SwiftUI 상세 뷰 내부의 toolbar 구성과 연관 가능성이 높아 보이지만, 아직 재현 조건을 분리해 확인하지 못함
+- 위 경고는 현재 `bottomBar/status` 조합에서도 남는지 먼저 확인해야 하며, 남는다면 `fullScreenCover`로 띄운 SwiftUI 상세 뷰 내부의 toolbar/presentation 조합과 연관될 가능성이 높음
 - `com.apple.accounts Code=7` 및 `CMPhotoJFIFUtilities err=-17102` 로그는 시스템/자산 레벨 노이즈일 가능성이 있으나, 아직 근거가 부족하므로 원인 미상으로 보존해야 함
 - 최신 세션의 검증 caveat:
   - 공유 scheme `PHOU`가 project 안에 없어 기존 build 명령이 실패함
   - target build로 우회해도 SPM dependency (`ConcurrencyExtras`, `IssueReporting`) 해석 오류로 막혀 최신 수정분의 compile verification을 확인하지 못함
+
+## 실기기 성능 가설 업데이트
+
+- 가장 유력한 병목은 `TabView`가 현재/인접 페이지만 로드하더라도 body 재계산 시 전체 `items` 컬렉션을 기준으로 page tree를 다시 구성하는 점입니다. 라이브러리 규모가 클수록 진입/스와이프/닫기 시 diff와 identity 비교 비용이 누적될 수 있습니다.
+- 두 번째 후보는 고해상도 이미지 decode 비용입니다. 현재는 `displayImage(for:targetSize:)`가 viewport 기준으로 큰 이미지를 요청하고 있고, 실제 디코드/리사이즈 타이밍이 메인 스레드 frame budget과 겹치면 첫 진입과 페이지 전환에서 hitch가 생길 수 있습니다.
+- 세 번째 후보는 `fullScreenCover + NavigationStack + zoom transition + toolbar` 조합입니다. 특히 기존 하단 `bottomBar`는 `UIKitToolbar` 경고까지 보여서 hierarchy 구성 자체가 불안정했을 가능성이 큽니다. 이번 세션에서 하단 toolbar를 제거한 이유도 여기에 있습니다.
+- 네 번째 후보는 동영상/메타데이터 부가 작업입니다. 활성 페이지 video player item 준비, 현재 asset의 summary metadata 계산, reverse geocoding, album membership 조회가 같은 시점에 겹치면 체감이 더 나빠질 수 있습니다. 이 중 geocoding/album 조회는 현재도 비교적 늦게 로드하지만, summary title 갱신과 player 준비는 여전히 전환 직후에 맞물립니다.
+- 현재 수정으로 줄어든 비용:
+  - 하단 `bottomBar` toolbar 제거
+  - video rendering을 `AVPlayerViewController`에서 `AVPlayerLayer`로 단순화
+  - immersive 전환 시 viewport 재계산 대신 UI/background visibility만 변경
+  - `MediaDetailFeature.State`의 `Equatable` 범위를 current item 중심으로 축소
+- 다음 profiling 우선순위:
+  1. 상세 뷰 진입 직후 Time Profiler에서 main-thread 상위 비용이 image decode인지 SwiftUI layout/diff인지 분리
+  2. SwiftUI Instruments에서 `MediaDetailView` body invalidation 범위와 빈도 확인
+  3. 라이브러리 규모가 큰 기기에서 현재 index ±N window만 실제 page tree에 올리는 구조로 줄여야 하는지 판단
+  4. 필요 시 상세 메타데이터 title summary도 placeholder 고정 후 idle 시점에 갱신하도록 더 늦출지 검토
 
 ---
 
@@ -287,7 +307,7 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 촬영 기기명을 사진/동영상 모두에서 같은 수준으로 제공할 수 있는지, 아니면 자산 타입별 fallback 정책이 필요한지
 - 상세정보 시트의 소속 앨범을 모든 앨범 제목 리스트로 보여줄지, 사용자에게 의미 있는 대표 앨범만 보여줄지
 - 편집 버튼이 즉시 crop 화면으로 들어갈지, 추후 기능 확장을 고려해 별도 action sheet를 둘지
-- 현재 system toolbar 구조가 overlay보다 더 네이티브한 대신, `fullScreenCover` + zoom transition + inline panel 조합에서 hierarchy 경고 없이 유지 가능한지
+- 현재 toolbar 기반 chrome 구조(상단 navigation toolbar + 하단 bottomBar/status)가 `fullScreenCover` + zoom transition + inline panel 조합에서 hierarchy 경고 없이 유지 가능한지
 - inline 정보 패널 drag가 pager/zoom과 실제 사용에서 충돌하지 않는지
 - 핀치 기반 열 수 변경이 회전/iPad/split view에서도 충분히 자연스러운지
 - 썸네일 preheat(`startCachingImages`)가 실제 체감 성능 개선에 얼마나 기여하는지 profiling이 필요한지
@@ -298,8 +318,8 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 
 1. `UIKitToolbar` hierarchy 경고가 어떤 presentation 조합에서 나는지 재현 조건을 좁히기
 2. 세로 사진이 normal/immersive에서 같은 fit size를 유지하는지 실기기와 작은 시뮬레이터에서 수동 확인
-3. iOS 18 하단 toolbar의 3분 배치가 의도대로 나오는지 확인
-4. 실기기 지연이 라이브러리 규모, TCA state diff, metadata 로딩 중 어디에서 오는지 profiling/가설 검증
-5. system toolbar 유지가 어렵다면 overlay chrome 복귀 또는 hybrid 구조를 검토
+3. iOS 18 하단 `ToolbarItem`의 3구역 배치가 의도대로 나오는지 확인
+4. 실기기 지연이 라이브러리 규모, TCA state diff, metadata 로딩, `TabView` 페이지 유지, player 생성 중 어디에서 오는지 profiling/가설 검증
+5. 현재 toolbar 기반 chrome 구조가 충분히 안정적인지 확인하고, 필요 시 placement 조합 또는 overlay fallback 범위를 다시 검토
 6. 사진/동영상/줌 상태에서 inline 패널 drag가 pager와 충돌하지 않는지 확인
 5. 편집 액션 범위를 crop-only로 확정할지 판단하고, 확정 시 UI/저장 경로를 설계

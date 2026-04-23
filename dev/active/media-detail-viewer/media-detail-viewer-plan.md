@@ -17,7 +17,7 @@
 
 추가 사용자 피드백으로 scope가 다시 조정되었습니다. 상세 뷰는 iPhone 기본 사진 앱에 더 가깝게 다듬어야 하며, 상단/하단 chrome은 fade되는 overlay 성격으로 유지하되 제스처와 safe area 변화에 자연스럽게 반응해야 합니다. 또한 상세 정보는 별도 modal sheet보다 Photos 앱처럼 아래에서 올라오는 inline info panel 구조가 더 맞는 것으로 범위가 재정의되었습니다. 편집 기능은 공개 시스템 사진 편집 UI를 앱 내부에서 직접 띄우는 방향이 아니라, 필요 시 crop-only 커스텀 편집으로 축소하는 쪽으로 재정의합니다.
 
-가장 최근 세션에서는 iOS 26 기본 사진 앱의 Liquid Glass 인상을 맞추기 위해 `ToolbarItem` / `ToolbarItemGroup` 기반 system toolbar 전환을 시도했습니다. 현재 코드는 그 방향으로 바뀌어 있지만, 사용자 보고 기준 레이아웃 문제는 아직 해결되지 않았고, 런타임 중 `UIKitToolbar` hosting hierarchy 경고가 새로 관찰되어 이 방향의 안정성 검증이 추가 범위가 되었습니다.
+가장 최근 세션에서는 iOS 26 기본 사진 앱의 Liquid Glass 인상을 맞추기 위해 `ToolbarItem` / `ToolbarItemGroup` 기반 system toolbar 전환을 시도했습니다. 사용자의 최신 피드백에 따라 하단도 `ToolbarItem` 기반을 유지합니다. 다만 iOS 18에서는 public API만으로 Photos 앱 같은 원형 그룹 버튼을 그대로 재현하기 어렵기 때문에, 배치는 `bottomBar`와 `status` placement 조합으로 `share+favorite / info / crop+delete` 3구역에 최대한 가깝게 맞추는 방향으로 정리합니다.
 
 ---
 
@@ -41,7 +41,7 @@
 | 셀 탭 액션 | ✅ 구현 완료 | `GalleryView`, `AlbumPhotoGridView` 그리드 셀이 뷰어 진입을 트리거함 |
 | 갤러리 fetch 범위 | ✅ mixed media 전환 완료 | `fetchMedia()` 기반으로 사진/동영상 혼합 자산을 표시 |
 | 고해상도 원본 로딩 | ✅ 1차 구현 완료 | detail image loader와 현재/인접 페이지 우선 로딩이 반영됨 |
-| 동영상 재생 | ✅ 1차 구현 완료 | `AVPlayerViewController` 기반 재생은 가능하지만 제어 UI는 아직 최소 수준 |
+| 동영상 재생 | ✅ 1차 구현 완료 | 재생은 가능하며, 최신 수정에서 `AVPlayerLayer` 기반으로 단순화해 크롭 없이 한 축이 꽉 차는 aspect-fit 표시를 우선 적용 |
 | 사진 초기 세로 정렬 | ⚠️ 보정 후 재검증 필요 | `LayoutAwareScrollView` 기반 재-centering 경로를 추가했지만 실제 사용자 재현이 사라졌는지는 아직 수동 확인 필요 |
 | 상세 chrome 구성 | ⚠️ 재검토 중 | overlay chrome에서 system `toolbar` 기반으로 다시 전환했지만, 사용자 보고 기준 레이아웃 문제는 여전하고 `UIKitToolbar` 경고가 추가됨 |
 | 위치/날짜 포맷 | ✅ 1차 구현 완료 | 위치 유무에 따른 2줄 타이틀과 최근성/24시간 설정 기반 포맷이 코드에 반영됨 |
@@ -54,10 +54,10 @@
 - `GalleryFeature`는 `fetchMedia()` 기반 mixed media fetch로 전환 완료
 - `GalleryView`, `AlbumPhotoGridView`에서 동일한 full-screen 미디어 뷰어 연결 완료
 - 사진은 `UIScrollView` 기반 zoom/pan으로 전환되어 일반 사진 앱에 가까운 상호작용을 목표로 보정됐지만, 최초 진입 직후 Y축 중앙 정렬은 아직 완전히 해결되지 않음
-- 동영상은 `requestPlayerItem(forVideo:)` + `AVPlayerViewController` 기반으로 재생 안정성 보정 완료
+- 동영상은 `requestPlayerItem(forVideo:)` 이후 `AVPlayerLayer` 기반 뷰로 표시해, safe area를 무시한 full-bleed 프레임 안에서 aspect-fit으로 가로 또는 세로 한 축이 항상 꽉 차도록 조정
 - 활성 페이지가 아닌 동영상은 pause 하도록 로직 추가
 - 썸네일은 `PHCachingImageManager` + request cancel을 유지하면서 화질을 다시 `highQualityFormat` 쪽으로 복구
-- 상단/하단 chrome은 한 차례 overlay 기반 immersive/fade 구조로 바뀌었다가, 최근에는 `NavigationStack + ToolbarItem/ToolbarItemGroup` 기반 system toolbar로 다시 전환됨
+- 상단/하단 chrome 모두 `ToolbarItem` 기반을 유지하되, 하단은 iOS 18에서 `bottomBar` + `status` placement 조합으로 재배치함
 - 중앙 타이틀은 위치 유무에 따라 `위치 / 날짜+시간` 또는 `날짜 / 시간` 2줄 구조를 사용함
 - 위치 표기는 `administrativeArea/locality/subLocality/thoroughfare/name` 조합 기반의 best-effort 상세 문자열로 확장됨
 - 상세정보는 이제 modal sheet 대신 inline panel 후보 구조로 전환 중이며, 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 같은 데이터 소스로 표시함
@@ -125,8 +125,8 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - 위치가 있으면 상단 줄에 위치, 하단 줄에 날짜+시간을 표시하고, 위치가 없으면 상단 줄에 날짜, 하단 줄에 시간을 표시합니다.
 - 날짜는 현재 시점 기준 최근 1주 이내면 요일, 같은 해면 `M월 d일`, 그보다 과거면 `yyyy년 M월 d일` 규칙을 따릅니다.
 - 시간은 사용자의 24시간 표기 설정을 따라 24시 또는 `오전`/`오후` 12시간 형식으로 표시합니다.
-- 하단 액션은 Photos 앱처럼 보이는 system toolbar grouping 또는 overlay 중 더 안정적인 방향을 택합니다. 현재는 `ToolbarItemGroup + ToolbarSpacer`로 Liquid Glass 레이아웃을 시도 중이며, 단일 탭 immersive 전환 시 chrome이 함께 사라져야 합니다.
-- 단일 탭으로 배경을 `systemBackground` / black 사이에서 토글하고, 이때 사진 viewport도 safe area 고려/무시 상태에 맞춰 함께 확장 또는 축소되어야 합니다.
+- 하단 액션은 `ToolbarItem` 기반을 유지합니다. iOS 18에서는 `bottomBar`와 `status` placement를 조합해 `share+favorite / info / crop+delete` 3구역에 가깝게 맞추고, iOS 26에서는 기존 `ToolbarSpacer` 기반 glass grouping 실험을 유지합니다.
+- 단일 탭 immersive 전환은 배경색과 chrome visibility만 바꾸고, 미디어 viewport 크기는 normal/immersive에서 동일하게 유지합니다.
 - 사진은 더블 탭으로 확대/축소를 지원합니다.
 - 사진은 최초 진입 직후에도 별도 상호작용 없이 Y축 중앙 정렬되어야 합니다.
 - 위로 스와이프하면 사진이 위로 lift 되면서 하단에서 inline 정보 패널이 올라와야 합니다.
@@ -156,8 +156,8 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - 시뮬레이터에서 실제 진입/스와이프/동영상 재생 수동 확인
 - 필요 시 현재 페이지 표시와 제스처 충돌 UX 미세 조정
 - 사진 세로 중앙 정렬이 최초 진입 시에도 완전히 해결됐는지 수동 검증
-- system toolbar 전환 후 navigation/title/action 배치가 iPhone 사진 앱 흐름과 어긋나지 않는지 확인
-- `UIKitToolbar` hierarchy 경고가 재현되는지, 특정 presentation 조합(`fullScreenCover`, zoom transition, nested NavigationStack)과 연결되는지 확인
+- 하단 `ToolbarItem` 배치가 iPhone 작은 기기에서도 `share+favorite / info / crop+delete` 3구역으로 안정적으로 보이는지 확인
+- `UIKitToolbar` hierarchy 경고가 현재 `bottomBar/status` 조합에서도 재현되는지, 특정 presentation 조합(`fullScreenCover`, zoom transition, nested NavigationStack)과 연결되는지 확인
 - 위치/날짜/시간 포맷이 한국어 로케일과 사용자의 24시간 설정에서 기대대로 보이는지 검증
 - 상세정보 시트의 파일명/기기/앨범 정보가 실제 자산에서 일관되게 채워지는지 검증
 - crop-only 편집이 도입되면 저장/취소/원본 보존 정책을 추가 검증
@@ -182,11 +182,12 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - iOS 18+에서는 `matchedTransitionSource` + zoom transition을 통해 셀에서 상세 뷰로 이어지는 확대 전환을 우선 적용합니다.
 - 동영상 재생 UI는 현재 브랜치에서 시스템 playback controls를 숨겨 기존 chrome 충돌만 해소하고, 커스텀 플레이어 설계/구현은 별도 후속 작업으로 분리합니다.
 
-### 3. chrome은 system toolbar 우선 검증
+### 3. chrome은 ToolbarItem 기반으로 유지
 
-- iOS 26 기본 사진 앱처럼 Liquid Glass가 자연스럽게 붙는지 보기 위해 `ToolbarItem`, `ToolbarItemGroup`, `ToolbarSpacer` 기반 system toolbar를 현재 우선 시도합니다.
-- 다만 `fullScreenCover` 기반 상세 뷰와 결합했을 때 `UIKitToolbar` hierarchy 경고가 관찰되어, 이 구성이 실제로 안전한지 아직 확정되지 않았습니다.
-- 레퍼런스 재현도와 안정성 중 어느 쪽이 더 우선인지에 따라 overlay chrome으로 되돌릴 가능성도 열어둡니다.
+- 상단 title/menu/back affordance는 system navigation toolbar를 유지합니다.
+- 하단 액션도 사용자 의도에 맞춰 `ToolbarItem` 기반을 유지합니다.
+- iOS 18에서는 `bottomBar`와 `status` placement를 조합해 중앙 info를 분리하고, 좌측/우측 그룹을 나눠 배치합니다.
+- public API 범위 안에서는 Photos 앱의 원형 그룹 버튼을 완전히 동일하게 만들 수 없으므로, 우선순위는 `ToolbarItem` 유지와 3구역 레이아웃 근사입니다.
 
 ### 4. 제목 포맷은 Photos 앱 유사 정책
 

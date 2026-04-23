@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import AVKit
 import UIKit
 import ComposableArchitecture
 @preconcurrency import Photos
@@ -133,7 +132,11 @@ struct MediaDetailView: View {
                 .animation(chromeAnimation, value: usesImmersiveBackground)
                 .animation(chromeAnimation, value: showsDetailsPanel)
                 .statusBarHidden(usesImmersiveBackground)
-                .toolbar(usesImmersiveBackground ? .hidden : .visible, for: .navigationBar, .bottomBar)
+                .toolbar(usesImmersiveBackground ? .hidden : .visible, for: .navigationBar)
+                .toolbar(
+                    usesImmersiveBackground || showsDetailsPanel ? .hidden : .visible,
+                    for: .bottomBar
+                )
                 .toolbarBackgroundVisibility(.automatic, for: .navigationBar, .bottomBar)
                 .toolbar {
                     mediaDetailToolbar
@@ -187,7 +190,7 @@ struct MediaDetailView: View {
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
-        .ignoresSafeArea(usesImmersiveBackground ? .all : [])
+        .ignoresSafeArea()
     }
 
     private func toggleBackground() {
@@ -295,12 +298,18 @@ struct MediaDetailView: View {
                 deleteToolbarButton
             }
         } else {
-            ToolbarItem(placement: .bottomBar) {
+            ToolbarItemGroup(placement: .bottomBar) {
                 shareToolbarButton
+                favoriteToolbarButton
             }
 
-            ToolbarItem(placement: .bottomBar) {
-                legacyBottomToolbarRow
+            ToolbarItem(placement: .status) {
+                infoToolbarButton
+            }
+
+            ToolbarItemGroup(placement: .bottomBar) {
+                cropToolbarButton
+                deleteToolbarButton
             }
         }
     }
@@ -398,25 +407,6 @@ struct MediaDetailView: View {
             Image(systemName: "trash")
         }
         .disabled(currentAsset == nil)
-    }
-
-    private var legacyBottomToolbarRow: some View {
-        HStack(spacing: 16) {
-            shareToolbarButton
-
-            Spacer(minLength: 0)
-
-            HStack(spacing: 24) {
-                favoriteToolbarButton
-                infoToolbarButton
-                cropToolbarButton
-            }
-
-            Spacer(minLength: 0)
-
-            deleteToolbarButton
-        }
-        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -592,7 +582,7 @@ private struct MediaVideoPageView: View {
     var body: some View {
         ZStack {
             if let player {
-                FillWidthPlayerView(player: player)
+                PlayerLayerView(player: player)
                     .ignoresSafeArea()
                     .onAppear {
                         if isActive {
@@ -655,23 +645,34 @@ private struct MediaVideoPageView: View {
     }
 }
 
-private struct FillWidthPlayerView: UIViewControllerRepresentable {
+private struct PlayerLayerView: UIViewRepresentable {
     let player: AVPlayer
 
-    func makeUIViewController(context: Context) -> AVPlayerViewController {
-        let controller = AVPlayerViewController()
-        controller.player = player
-        controller.videoGravity = .resizeAspectFill
-        controller.view.backgroundColor = .black
-        controller.view.clipsToBounds = true
-        controller.showsPlaybackControls = false
-        return controller
+    func makeUIView(context: Context) -> PlayerContainerView {
+        let view = PlayerContainerView()
+        view.backgroundColor = .black
+        view.playerLayer.videoGravity = .resizeAspect
+        view.playerLayer.player = player
+        return view
     }
 
-    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
-        if controller.player !== player {
-            controller.player = player
+    func updateUIView(_ view: PlayerContainerView, context: Context) {
+        if view.playerLayer.player !== player {
+            view.playerLayer.player = player
         }
+    }
+}
+
+private final class PlayerContainerView: UIView {
+    override class var layerClass: AnyClass {
+        AVPlayerLayer.self
+    }
+
+    var playerLayer: AVPlayerLayer {
+        guard let layer = layer as? AVPlayerLayer else {
+            fatalError("Expected AVPlayerLayer backing layer")
+        }
+        return layer
     }
 }
 
