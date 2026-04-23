@@ -27,7 +27,11 @@ struct MediaDetailView: View {
                     )
                 ) {
                     ForEach(Array(store.items.enumerated()), id: \.element.id) { index, asset in
-                        MediaPageView(asset: asset, containerSize: proxy.size)
+                        MediaPageView(
+                            asset: asset,
+                            containerSize: proxy.size,
+                            isActive: index == store.currentIndex
+                        )
                             .tag(index)
                     }
                 }
@@ -72,13 +76,14 @@ struct MediaDetailView: View {
 private struct MediaPageView: View {
     let asset: PhotoAsset
     let containerSize: CGSize
+    let isActive: Bool
 
     var body: some View {
         switch asset.mediaType {
         case .image, .unknown:
             MediaImagePageView(assetID: asset.id, containerSize: containerSize)
         case .video:
-            MediaVideoPageView(assetID: asset.id)
+            MediaVideoPageView(assetID: asset.id, isActive: isActive)
         }
     }
 }
@@ -98,11 +103,13 @@ private struct MediaImagePageView: View {
                     containerSize: containerSize
                 )
                 .ignoresSafeArea()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ProgressView()
                     .tint(.white)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: assetID) {
             image = await loadFullImage()
         }
@@ -136,6 +143,7 @@ private struct MediaImagePageView: View {
 
 private struct MediaVideoPageView: View {
     let assetID: String
+    let isActive: Bool
 
     @State private var player: AVPlayer?
     @State private var isLoading = false
@@ -146,8 +154,13 @@ private struct MediaVideoPageView: View {
             if let player {
                 FillWidthPlayerView(player: player)
                     .ignoresSafeArea()
-                    .onAppear { player.play() }
-                    .onDisappear { player.pause() }
+                    .onAppear {
+                        if isActive {
+                            player.play()
+                        } else {
+                            player.pause()
+                        }
+                    }
             } else if isLoading {
                 ProgressView()
                     .tint(.white)
@@ -168,7 +181,19 @@ private struct MediaVideoPageView: View {
             player = await loadPlayer()
             isLoading = false
             failedToLoad = player == nil
-            player?.play()
+            if isActive {
+                player?.play()
+            } else {
+                player?.pause()
+            }
+        }
+        .onChange(of: isActive) { _, isActive in
+            guard let player else { return }
+            if isActive {
+                player.play()
+            } else {
+                player.pause()
+            }
         }
         .onDisappear {
             player?.pause()
@@ -204,7 +229,7 @@ private struct FillWidthPlayerView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
-        controller.videoGravity = .resizeAspectFill
+        controller.videoGravity = .resizeAspect
         controller.view.backgroundColor = .black
         controller.showsPlaybackControls = true
         return controller
@@ -243,6 +268,7 @@ private struct ZoomableImageView: UIViewRepresentable {
     }
 
     func updateUIView(_ scrollView: UIScrollView, context: Context) {
+        scrollView.frame = CGRect(origin: .zero, size: containerSize)
         context.coordinator.update(
             image: image,
             resetID: resetID,
@@ -300,13 +326,7 @@ private struct ZoomableImageView: UIViewRepresentable {
             )
             scrollView.contentSize = imageView.frame.size
             centerImage(in: scrollView)
-
-            if scaledHeight > containerSize.height {
-                let centeredYOffset = (scaledHeight - containerSize.height) / 2
-                scrollView.setContentOffset(CGPoint(x: 0, y: centeredYOffset), animated: false)
-            } else {
-                scrollView.setContentOffset(.zero, animated: false)
-            }
+            scrollView.setContentOffset(.zero, animated: false)
         }
 
         private func centerImage(in scrollView: UIScrollView) {

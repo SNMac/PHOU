@@ -49,8 +49,8 @@ struct PhotoThumbnailView: View {
         guard let asset = fetchResult.firstObject else { return nil }
 
         let options = PHImageRequestOptions()
-        options.deliveryMode = .fastFormat
-        options.resizeMode = .fast
+        options.deliveryMode = .highQualityFormat
+        options.resizeMode = .exact
         options.isNetworkAccessAllowed = false
         options.isSynchronous = false
 
