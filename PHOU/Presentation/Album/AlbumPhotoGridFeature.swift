@@ -71,6 +71,15 @@ struct AlbumPhotoGridFeature {
                 state.errorMessage = error.localizedDescription
                 return .none
 
+            case let .mediaDetail(.presented(.delegate(.assetDeleted(id)))):
+                state.assets.removeAll { $0.id == id }
+                return .none
+
+            case let .mediaDetail(.presented(.delegate(.favoriteChanged(id: id, isFavorite: isFavorite)))):
+                guard let index = state.assets.firstIndex(where: { $0.id == id }) else { return .none }
+                state.assets[index].isFavorite = isFavorite
+                return .none
+
             case .mediaDetail:
                 return .none
             }

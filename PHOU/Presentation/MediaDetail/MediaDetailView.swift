@@ -15,14 +15,15 @@ struct MediaDetailView: View {
     @Bindable var store: StoreOf<MediaDetailFeature>
     let transitionNamespace: Namespace.ID?
 
-    @Environment(\.dismiss) private var dismiss
-
     @State private var usesImmersiveBackground = false
     @State private var currentDetails: MediaAssetDetails?
     @State private var shareItems: [Any] = []
     @State private var isPreparingShare = false
     @State private var infoItem: MediaInfoItem?
-    @State private var showsEditUnavailableAlert = false
+    @State private var showsCropUnavailableAlert = false
+    @State private var showsAdjustmentUnavailableAlert = false
+    @State private var adjustmentUnavailableMessage = ""
+    @State private var showsDeleteConfirmation = false
 
     private var currentAssetID: String {
         guard store.items.indices.contains(store.currentIndex) else { return "media-detail-fallback" }
@@ -50,14 +51,60 @@ struct MediaDetailView: View {
             .sheet(isPresented: shareSheetBinding) {
                 ShareSheetView(activityItems: shareItems)
             }
+            .sheet(
+                isPresented: Binding(
+                    get: { store.isAlbumPickerPresented },
+                    set: { isPresented in
+                        if !isPresented {
+                            store.send(.view(.albumPickerDismissed))
+                        }
+                    }
+                )
+            ) {
+                AlbumPickerSheet(albums: store.userAlbums) { albumID in
+                    store.send(.view(.albumSelected(albumID)))
+                }
+            }
             .sheet(item: $infoItem) { item in
                 MediaInfoSheet(details: item.details)
                     .presentationDetents([.medium])
             }
-            .alert("기본 사진 편집을 열 수 없어요", isPresented: $showsEditUnavailableAlert) {
+            .alert("크롭은 다음 세션에서 이어서 구현할게요", isPresented: $showsCropUnavailableAlert) {
                 Button("확인", role: .cancel) {}
             } message: {
-                Text("PhotoKit은 앱 내부에서 시스템 사진 편집 UI를 직접 여는 공개 API를 제공하지 않아요.")
+                Text("이번 변경에서는 버튼 배치만 맞추고, 실제 크롭 편집은 다음 세션 범위로 남겨둘게요.")
+            }
+            .alert("아직 준비 중이에요", isPresented: $showsAdjustmentUnavailableAlert) {
+                Button("확인", role: .cancel) {}
+            } message: {
+                Text(adjustmentUnavailableMessage)
+            }
+            .alert(
+                "오류",
+                isPresented: Binding(
+                    get: { store.noticeMessage != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            store.send(.view(.noticeDismissed))
+                        }
+                    }
+                )
+            ) {
+                Button("확인", role: .cancel) {
+                    store.send(.view(.noticeDismissed))
+                }
+            } message: {
+                Text(store.noticeMessage ?? "")
+            }
+            .confirmationDialog(
+                "이 미디어를 삭제할까요?",
+                isPresented: $showsDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("삭제", role: .destructive) {
+                    store.send(.view(.deleteConfirmedTapped))
+                }
+                Button("취소", role: .cancel) {}
             }
     }
 
@@ -69,7 +116,7 @@ struct MediaDetailView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
-                            dismiss()
+                            store.send(.view(.dismissTapped))
                         } label: {
                             Image(systemName: "chevron.backward")
                         }
@@ -80,8 +127,31 @@ struct MediaDetailView: View {
                     }
 
                     ToolbarItem(placement: .topBarTrailing) {
-                        Image(systemName: (displayedDetails?.isFavorite ?? false) ? "heart.fill" : "heart")
-                            .foregroundStyle((displayedDetails?.isFavorite ?? false) ? .pink : .primary)
+                        Menu {
+                            Button {
+                                store.send(.view(.addToAlbumTapped))
+                            } label: {
+                                Label("앨범에 추가", systemImage: "text.badge.plus")
+                            }
+
+                            Button {
+                                presentUnavailableAdjustment(
+                                    "날짜 및 시간 조정은 아직 준비 중이에요."
+                                )
+                            } label: {
+                                Label("날짜 및 시간 조정", systemImage: "calendar.badge.clock")
+                            }
+
+                            Button {
+                                presentUnavailableAdjustment(
+                                    "위치 조정은 Apple 지도 연동 설계와 같이 다음 단계에서 다루겠습니다."
+                                )
+                            } label: {
+                                Label("위치 조정", systemImage: "mappin.and.ellipse")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
                     }
                 }
                 .safeAreaInset(edge: .bottom) {
@@ -130,37 +200,60 @@ struct MediaDetailView: View {
     }
 
     private var bottomBar: some View {
-        HStack {
-            Button {
-                guard let asset = currentAsset, !isPreparingShare else { return }
+        HStack(spacing: 20) {
+            chromeCircleButton(
+                systemImage: isPreparingShare ? "ellipsis.circle" : "square.and.arrow.up",
+                tint: .accentColor,
+                isDisabled: isPreparingShare || currentAsset == nil
+            ) {
+                guard let asset = currentAsset else { return }
                 Task {
                     await prepareShare(for: asset)
                 }
-            } label: {
-                Label("공유", systemImage: isPreparingShare ? "ellipsis.circle" : "square.and.arrow.up")
-            }
-            .disabled(isPreparingShare)
-
-            Spacer()
-
-            Button {
-                guard let details = currentDetails else { return }
-                infoItem = MediaInfoItem(details: details)
-            } label: {
-                Label("상세정보", systemImage: "info.circle")
             }
 
-            Spacer()
+            Spacer(minLength: 0)
 
-            Button {
-                showsEditUnavailableAlert = true
-            } label: {
-                Label("편집", systemImage: "crop")
+            HStack(spacing: 4) {
+                chromeCapsuleButton(
+                    systemImage: (currentAsset?.isFavorite ?? false) ? "heart.fill" : "heart",
+                    tint: (currentAsset?.isFavorite ?? false) ? .pink : .accentColor
+                ) {
+                    store.send(.view(.favoriteTapped))
+                }
+
+                chromeCapsuleButton(
+                    systemImage: "info.circle",
+                    tint: .accentColor
+                ) {
+                    presentInfo()
+                }
+
+                chromeCapsuleButton(
+                    systemImage: "crop",
+                    tint: .accentColor
+                ) {
+                    showsCropUnavailableAlert = true
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(.thinMaterial)
+            .clipShape(Capsule())
+
+            Spacer(minLength: 0)
+
+            chromeCircleButton(
+                systemImage: "trash",
+                tint: .red,
+                isDisabled: currentAsset == nil
+            ) {
+                showsDeleteConfirmation = true
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(.thinMaterial)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
 
     private func toggleBackground() {
@@ -176,7 +269,10 @@ struct MediaDetailView: View {
         }
 
         currentDetails = .placeholder(for: currentAsset)
-        currentDetails = await MediaDetailAssetLoader.details(for: currentAsset)
+        let assetID = currentAsset.id
+        let details = await MediaDetailAssetLoader.summaryDetails(for: currentAsset)
+        guard assetID == currentAssetID else { return }
+        currentDetails = details
     }
 
     private func prepareShare(for asset: PhotoAsset) async {
@@ -186,6 +282,27 @@ struct MediaDetailView: View {
         if let items = await MediaDetailAssetLoader.shareItems(for: asset) {
             shareItems = items
         }
+    }
+
+    private func presentInfo() {
+        guard let currentAsset else { return }
+
+        infoItem = MediaInfoItem(details: displayedDetails ?? .placeholder(for: currentAsset))
+
+        Task {
+            let assetID = currentAsset.id
+            let details = await MediaDetailAssetLoader.details(for: currentAsset)
+
+            guard assetID == currentAssetID else { return }
+
+            currentDetails = details
+            infoItem = MediaInfoItem(details: details)
+        }
+    }
+
+    private func presentUnavailableAdjustment(_ message: String) {
+        adjustmentUnavailableMessage = message
+        showsAdjustmentUnavailableAlert = true
     }
 
     private var shareSheetBinding: Binding<Bool> {
@@ -211,6 +328,38 @@ struct MediaDetailView: View {
                 .lineLimit(1)
         }
         .multilineTextAlignment(.center)
+    }
+
+    private func chromeCircleButton(
+        systemImage: String,
+        tint: Color,
+        isDisabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 22, weight: .regular))
+                .foregroundStyle(tint)
+                .frame(width: 58, height: 58)
+                .background(.thinMaterial)
+                .clipShape(Circle())
+        }
+        .disabled(isDisabled)
+    }
+
+    private func chromeCapsuleButton(
+        systemImage: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 22, weight: .regular))
+                .foregroundStyle(tint)
+                .frame(width: 54, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -557,9 +706,7 @@ private struct MediaInfoSheet: View {
                     infoRow(title: "촬영 기기", value: details.deviceText)
                     infoRow(title: "위치", value: details.locationText)
                     infoRow(title: "앨범", value: details.albumText)
-                    infoRow(title: "종류", value: details.mediaTypeText)
                     infoRow(title: "크기", value: details.pixelSizeText)
-                    infoRow(title: "즐겨찾기", value: details.isFavorite ? "예" : "아니요")
                 }
             }
             .navigationTitle("상세정보")
@@ -584,5 +731,37 @@ private final class LayoutAwareScrollView: UIScrollView {
     override func layoutSubviews() {
         super.layoutSubviews()
         onLayout?(self)
+    }
+}
+
+private struct AlbumPickerSheet: View {
+    let albums: [AlbumGroup]
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(Array(albums.enumerated()), id: \.element.id) { _, album in
+                    Button {
+                        onSelect(album.id)
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(album.title)
+                                    .foregroundStyle(.primary)
+                                Text("\(album.assetCount)개")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("앨범에 추가")
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }

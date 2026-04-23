@@ -78,15 +78,15 @@ struct MediaInfoItem: Identifiable {
     let details: MediaAssetDetails
 }
 
-@MainActor
 enum MediaDetailAssetLoader {
     private static let imageManager = PHCachingImageManager()
-    private static let assetCache = NSCache<NSString, PHAsset>()
-    private static let imageCache = NSCache<NSString, UIImage>()
-    private static let locationCache = NSCache<NSString, NSString>()
+    nonisolated(unsafe) private static let assetCache = NSCache<NSString, PHAsset>()
+    nonisolated(unsafe) private static let imageCache = NSCache<NSString, UIImage>()
+    nonisolated(unsafe) private static let locationCache = NSCache<NSString, NSString>()
 
     static func displayImage(for assetID: String, targetSize: CGSize) async -> UIImage? {
-        let cacheKey = imageCacheKey(assetID: assetID, targetSize: targetSize)
+        let requestSize = await pixelSize(from: targetSize)
+        let cacheKey = imageCacheKey(assetID: assetID, requestSize: requestSize)
         if let cached = imageCache.object(forKey: cacheKey as NSString) {
             return cached
         }
@@ -99,7 +99,6 @@ enum MediaDetailAssetLoader {
         options.isNetworkAccessAllowed = false
         options.isSynchronous = false
 
-        let requestSize = pixelSize(from: targetSize)
         if let image = await requestImage(
             for: asset,
             targetSize: requestSize,
@@ -123,17 +122,13 @@ enum MediaDetailAssetLoader {
         return await requestPlayerItem(for: asset, options: options)
     }
 
-    static func details(for asset: PhotoAsset) async -> MediaAssetDetails {
+    static func summaryDetails(for asset: PhotoAsset) async -> MediaAssetDetails {
         guard let phAsset = self.asset(for: asset.id) else {
             return .placeholder(for: asset)
         }
 
         let captureDate = phAsset.creationDate ?? asset.creationDate
-        async let locationTextTask = resolvedLocationText(for: asset.id, location: phAsset.location)
-        async let deviceTextTask = resolvedDeviceText(for: phAsset)
-
-        let locationText = await locationTextTask
-        let deviceText = await deviceTextTask
+        let locationText = await resolvedLocationText(for: asset.id, location: phAsset.location)
         let title = MediaAssetDetails.titleTexts(
             date: captureDate,
             locationText: locationText == "위치 없음" ? nil : locationText
@@ -146,11 +141,35 @@ enum MediaDetailAssetLoader {
             captureDateText: MediaAssetDetails.formattedInfoDate(captureDate),
             locationText: locationText,
             filenameText: resolvedFilename(for: phAsset),
-            deviceText: deviceText,
-            albumText: resolvedAlbumText(for: phAsset),
+            deviceText: "상세정보에서 확인 가능",
+            albumText: "상세정보에서 확인 가능",
             isFavorite: phAsset.isFavorite,
             mediaTypeText: MediaAssetDetails.mediaTypeText(asset.mediaType),
             pixelSizeText: "\(phAsset.pixelWidth) × \(phAsset.pixelHeight)"
+        )
+    }
+
+    static func details(for asset: PhotoAsset) async -> MediaAssetDetails {
+        guard let phAsset = self.asset(for: asset.id) else {
+            return .placeholder(for: asset)
+        }
+
+        let summary = await summaryDetails(for: asset)
+        async let deviceTextTask = resolvedDeviceText(for: phAsset)
+        async let albumTextTask = resolvedAlbumText(for: phAsset)
+
+        return MediaAssetDetails(
+            id: summary.id,
+            titlePrimaryText: summary.titlePrimaryText,
+            titleSecondaryText: summary.titleSecondaryText,
+            captureDateText: summary.captureDateText,
+            locationText: summary.locationText,
+            filenameText: summary.filenameText,
+            deviceText: await deviceTextTask,
+            albumText: await albumTextTask,
+            isFavorite: summary.isFavorite,
+            mediaTypeText: summary.mediaTypeText,
+            pixelSizeText: summary.pixelSizeText
         )
     }
 
@@ -238,7 +257,9 @@ enum MediaDetailAssetLoader {
             fallback: administrativeArea ?? locality
         )
 
-        let secondary = [subLocality, thoroughfare, name]
+        let neighborhood = preferredNeighborhoodText(subLocality: subLocality, name: name)
+
+        let secondary = [neighborhood, thoroughfare, name]
             .compactMap { $0 }
             .first { candidate in
                 guard let primary else { return !candidate.isEmpty }
@@ -250,6 +271,43 @@ enum MediaDetailAssetLoader {
         }
 
         return primary ?? secondary
+    }
+
+    private static func preferredNeighborhoodText(subLocality: String?, name: String?) -> String? {
+        guard let subLocality else {
+            return neighborhoodLikeText(from: name)
+        }
+
+        guard
+            let name,
+            isMoreSpecificNeighborhood(name, than: subLocality)
+        else {
+            return subLocality
+        }
+
+        return name
+    }
+
+    private static func neighborhoodLikeText(from value: String?) -> String? {
+        guard let value else { return nil }
+        let suffixes = ["동", "가", "리", "읍", "면"]
+        return suffixes.contains(where: value.hasSuffix) ? value : nil
+    }
+
+    private static func isMoreSpecificNeighborhood(_ candidate: String, than base: String) -> Bool {
+        let normalizedCandidate = candidate.replacingOccurrences(
+            of: "\\d+",
+            with: "",
+            options: .regularExpression
+        )
+        let normalizedBase = base.replacingOccurrences(
+            of: "\\d+",
+            with: "",
+            options: .regularExpression
+        )
+
+        guard normalizedCandidate == normalizedBase else { return false }
+        return candidate != base
     }
 
     private static func deduplicatedLocationComponent(_ preferred: String?, fallback: String?) -> String? {
@@ -336,17 +394,14 @@ enum MediaDetailAssetLoader {
         return "\(latitude), \(longitude)"
     }
 
-    private static func imageCacheKey(assetID: String, targetSize: CGSize) -> String {
-        let pixelSize = pixelSize(from: targetSize)
-        return "\(assetID)-\(Int(pixelSize.width))x\(Int(pixelSize.height))"
+    private static func imageCacheKey(assetID: String, requestSize: CGSize) -> String {
+        "\(assetID)-\(Int(requestSize.width))x\(Int(requestSize.height))"
     }
 
+    @MainActor
     private static func pixelSize(from size: CGSize) -> CGSize {
-        let scale = UIScreen.main.scale
-        return CGSize(
-            width: max(size.width * scale, 1),
-            height: max(size.height * scale, 1)
-        )
+        let scale = max(UIScreen.main.scale, 1)
+        return CGSize(width: max(size.width * scale, 1), height: max(size.height * scale, 1))
     }
 
     private static func requestImage(

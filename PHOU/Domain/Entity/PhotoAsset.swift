@@ -10,7 +10,7 @@ import Foundation
 struct PhotoAsset: Identifiable, Equatable, Sendable {
     let id: String
     let creationDate: Date?
-    let isFavorite: Bool
+    var isFavorite: Bool
     let mediaType: MediaType
 
     enum MediaType: Equatable, Sendable {

@@ -83,16 +83,16 @@
 - [x] **5-5-j** 상세 뷰를 현재/인접 페이지 우선 로딩 구조로 보정
 - [x] **5-5-k** 단일 탭 배경 토글, double-tap zoom, 상하단 chrome 추가
 - [x] **5-5-l** 공유 시트와 상세정보 시트, 편집 안내 alert 연결
-- [ ] **5-5-m** 사진 최초 진입 시 Y축 중앙 정렬 재현 버그 수정
+- [x] **5-5-m** 사진 최초 진입 시 Y축 중앙 정렬 재현 버그 수정
   - 메모: `LayoutAwareScrollView` 기반 재-centering을 넣고 빌드는 통과했지만 실제 재현이 사라졌는지는 아직 수동 확인 전
 - [ ] **5-5-n** 기본 SwiftUI chrome 전환 후 UX 검증
-  - 메모: toolbar + bottom `safeAreaInset` 구조로 전환했고 빌드는 통과했지만 실제 체감/전환 확인은 남아 있음
+  - 메모: toolbar trailing `ellipsis` 메뉴, 하단 `공유 - 즐겨찾기/상세정보/크롭 - 삭제` 배치, 앨범 추가 sheet, 즐겨찾기/삭제 실제 액션까지 연결했고 실제 체감/전환 확인은 남아 있음
 - [ ] **5-5-o** 위치 표기 세분화 검증
-  - 메모: `administrativeArea/locality/subLocality/thoroughfare/name` 조합 로직이 코드에 들어갔고, 실제 지역별 품질 검증이 남아 있음
+  - 메모: `subLocality`와 `name`이 함께 있을 때 `신길동`보다 `신길4동` 같은 더 구체적인 동 단위를 우선 보존하도록 조정했고, 실제 지역별 품질 검증이 남아 있음
 - [ ] **5-5-p** 날짜/시간 표기 규칙 검증
   - 메모: 최근 1주/같은 해/과거 연도, 24시간/12시간 설정별 formatter는 구현됐고 수동 확인이 남아 있음
 - [ ] **5-5-q** 상세정보 시트 메타데이터 검증
-  - 메모: 파일명/기기/앨범 표시 경로는 연결됐고, 실제 자산에서 비어 있거나 누락되는 케이스 확인이 남아 있음
+  - 메모: 파일명/기기/앨범 표시 경로는 연결됐고, 사진 탐색 지연 완화를 위해 기기/앨범 상세 로딩은 info 진입 시점으로 늦췄음. 실제 자산에서 비어 있거나 누락되는 케이스 확인이 남아 있음
 - [ ] **5-5-r** 편집 액션 정책 검증
   - 메모: crop-only 구현 시 저장/취소 흐름, 미구현 시 버튼 정책을 명확히 해야 함
 - [ ] **5-6** iPad 레이아웃/회전에서 기본 동작 이상 없는지 확인
@@ -102,6 +102,7 @@
   - 추가 메모: iOS 18 zoom transition, 실제 셀 크기 기반 썸네일, `PHAsset` cache, 핀치 열 수 조절 반영 후 `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build` 재성공
   - 추가 메모: continuation leak 보정, 상세 뷰 support loader 분리, immersive background/chrome 추가 후 `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build` 재성공
   - 추가 메모: 기본 SwiftUI toolbar/safeAreaInset 전환, 상세정보 데이터 확장, `LayoutAwareScrollView` 보정 후 `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build` 재성공
+  - 추가 메모: 즐겨찾기 토글, 삭제, 앨범 추가, 위치 세분화 조정, photo summary/full metadata 분리 후 `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build` 재성공
 
 ---
 
@@ -112,7 +113,7 @@
 - [ ] 커스텀 비디오 플레이어 설계 및 구현
 - [ ] 동영상 pinch-to-zoom
 - [ ] 라이브 포토/버스트 등 특수 자산 표시 개선
-- [ ] 상세 뷰에서 삭제/즐겨찾기 실제 액션 추가
+- [x] 상세 뷰에서 삭제/즐겨찾기 실제 액션 추가
 - [ ] zoom transition이 off-screen source에서도 제품적으로 허용 가능한지 수동 확인
 - [ ] 갤러리 스크롤 성능이 계속 거슬리면 profiling 후 별도 Issue 분리
 

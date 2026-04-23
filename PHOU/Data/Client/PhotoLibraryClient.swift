@@ -15,6 +15,8 @@ struct PhotoLibraryClient: Sendable {
     var fetchPhotos: @Sendable () async throws -> [PhotoAsset] = { [] }
     var fetchAssetsInAlbum: @Sendable (_ albumId: String) async throws -> [PhotoAsset] = { _ in [] }
     var fetchAlbums: @Sendable () async throws -> [AlbumGroup] = { [] }
+    var setFavorite: @Sendable (_ assetId: String, _ isFavorite: Bool) async throws -> Void = { _, _ in }
+    var addAssetToAlbum: @Sendable (_ assetId: String, _ albumId: String) async throws -> Void = { _, _ in }
     var deleteAssets: @Sendable (_ ids: [String]) async throws -> Void = { _ in }
 }
 
@@ -92,6 +94,32 @@ extension PhotoLibraryClient: DependencyKey {
             }
             return albums
         },
+        setFavorite: { assetId, isFavorite in
+            let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil)
+            guard let asset = fetchResult.firstObject else { return }
+
+            try await PHPhotoLibrary.shared().performChanges {
+                let request = PHAssetChangeRequest(for: asset)
+                request.isFavorite = isFavorite
+            }
+        },
+        addAssetToAlbum: { assetId, albumId in
+            let assetFetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetId], options: nil)
+            let albumFetchResult = PHAssetCollection.fetchAssetCollections(
+                withLocalIdentifiers: [albumId],
+                options: nil
+            )
+
+            guard
+                let asset = assetFetchResult.firstObject,
+                let album = albumFetchResult.firstObject
+            else { return }
+
+            try await PHPhotoLibrary.shared().performChanges {
+                let request = PHAssetCollectionChangeRequest(for: album)
+                request?.addAssets([asset] as NSArray)
+            }
+        },
         deleteAssets: { ids in
             let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
             var targets: [PHAsset] = []
@@ -140,6 +168,8 @@ extension PhotoLibraryClient: DependencyKey {
                 AlbumGroup(id: "favorites", title: "즐겨찾기", assetCount: 1, coverAssetId: nil, albumType: .smartAlbum)
             ]
         },
+        setFavorite: { _, _ in },
+        addAssetToAlbum: { _, _ in },
         deleteAssets: { _ in }
     )
 }
