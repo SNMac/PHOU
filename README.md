@@ -52,7 +52,7 @@
 ## 🔨 개발 환경
 ![Static Badge|67](https://img.shields.io/badge/Swift%206-%23F05138?logo=swift&logoColor=white)
 ![Static Badge|93](https://img.shields.io/badge/Xcode%2026%20~-%23147EFB?logo=xcode&logoColor=white)
-![Static Badge|89](https://img.shields.io/badge/iOS%2017.0%20~%20-%23000000?logo=ios&logoColor=white)
+![Static Badge|89](https://img.shields.io/badge/iOS%2018.0%20~%20-%23000000?logo=ios&logoColor=white)
 
 <br>
 

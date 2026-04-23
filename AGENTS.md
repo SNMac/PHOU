@@ -4,7 +4,7 @@
 
 PHOU(PHoto Organizer for U)는 SwiftUI + TCA + 온디바이스 AI를 활용한 iOS/iPadOS 갤러리 및 미디어(사진/동영상) 정리 앱입니다.
 
-- **플랫폼**: iOS/iPadOS 17.0+, Swift 6
+- **플랫폼**: iOS/iPadOS 18.0+, Swift 6
 - **번들 ID**: com.snmac.PHOU
 
 ## 빌드 및 실행
@@ -15,10 +15,10 @@ Xcode에서 `PHOU.xcodeproj`를 열어 빌드합니다.
 
 ```bash
 # CLI 빌드 (시뮬레이터) — xcodeproj는 반드시 PHOU/PHOU/PHOU.xcodeproj 경로 사용
-xcodebuild -project PHOU/PHOU/PHOU.xcodeproj -scheme PHOU -destination 'platform=iOS Simulator,name=iPhone 13 mini,OS=17.0' build
+xcodebuild -project PHOU/PHOU/PHOU.xcodeproj -scheme PHOU -destination 'platform=iOS Simulator,name=iPhone 13 mini,OS=18.6' build
 
 # 테스트 실행 (Swift Testing 사용)
-xcodebuild -project PHOU/PHOU/PHOU.xcodeproj -scheme PHOU -destination 'platform=iOS Simulator,name=iPhone 13 mini,OS=17.0' test
+xcodebuild -project PHOU/PHOU/PHOU.xcodeproj -scheme PHOU -destination 'platform=iOS Simulator,name=iPhone 13 mini,OS=18.6' test
 
 # 의존성 갱신
 xcodebuild -resolvePackageDependencies
@@ -57,7 +57,7 @@ xcodebuild -resolvePackageDependencies
 - **PhotoKit**: 사진 라이브러리 접근 및 삭제
 - **CoreML / Vision Framework**: 온디바이스 AI — 흔들린 사진 감지, 유사 사진 그룹화, 키워드 검색
 - **SwiftData**: 앱 내부 영구 저장소
-- **SwiftUI**: 전체 UI (iOS 17+ API 사용 가능)
+- **SwiftUI**: 전체 UI (iOS 18+ API 사용 가능)
 
 ## SwiftUI / UI 가이드
 

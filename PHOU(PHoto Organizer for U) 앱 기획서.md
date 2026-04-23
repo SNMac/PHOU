@@ -1,6 +1,6 @@
 ## 1. 프로젝트 개요
 - **프로젝트 명:** PHOU (PHoto Organizer for U)
-- **개발 환경:** Swift, SwiftUI, iOS/iPadOS 17.0+
+- **개발 환경:** Swift, SwiftUI, iOS/iPadOS 18.0+
 - **핵심 아키텍처:** TCA (The Composable Architecture) 기반 Clean Architecture
 - **주요 목표:** iOS/iPadOS 17 이전의 클래식한 갤러리 앱 사용성을 제공함과 동시에, 온디바이스 AI를 활용하여 불필요한 사진과 동영상을 효율적으로 정리하는 경험 제공.
 
@@ -14,7 +14,7 @@
 
 ## 3. 주요 기능 (Core Features)
 ### ① 갤러리 탭 (Grid View)
-- iOS/iPadOS 17 이전 스타일의 `LazyVGrid` 기반 미디어 목록.
+- iOS/iPadOS 18 이전 스타일의 `LazyVGrid` 기반 미디어 목록.
 - `PHImageManager`를 활용한 사진/동영상 썸네일 로드 및 캐싱 최적화.
 - **동영상 식별:** 동영상 에셋 하단에 재생 시간(Duration) 배지 표시.
 
