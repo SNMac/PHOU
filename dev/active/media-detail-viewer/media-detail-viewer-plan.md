@@ -17,6 +17,10 @@
 
 추가 사용자 피드백으로 scope가 다시 조정되었습니다. 상세 뷰는 iPhone 기본 사진 앱에 더 가깝게 다듬어야 하며, 상단/하단 chrome은 fade되는 overlay 성격으로 유지하되 제스처와 safe area 변화에 자연스럽게 반응해야 합니다. 또한 상세 정보는 별도 modal sheet보다 Photos 앱처럼 아래에서 올라오는 inline info panel 구조가 더 맞는 것으로 범위가 재정의되었습니다. 편집 기능은 공개 시스템 사진 편집 UI를 앱 내부에서 직접 띄우는 방향이 아니라, 필요 시 crop-only 커스텀 편집으로 축소하는 쪽으로 재정의합니다.
 
+2026-04-24 추가 사용자 피드백으로 방향이 한 번 더 좁혀졌습니다. 현재의 inline info panel도 여전히 "하단에서 별도 레이어가 올라오는 패널"에 가깝고, reference인 iOS 기본 사진 앱처럼 "같은 상세 화면을 위로 스크롤하면 정보가 이어지고, 스냅되며, toolbar는 그 위에 남아있는" 감각과는 차이가 있습니다. 다음 구현은 패널 polish보다 구조 변경이 우선입니다.
+
+같은 맥락으로, 이전 성능 최적화에서 metadata 로딩 시점을 늦춘 영향으로 상단 principal title이 진입 직후 잠깐 불안정해지는 부작용도 확인됐습니다. 현재는 날짜만 먼저 보였다가 위치가 나중에 붙으며 title 폭과 줄 배치가 살짝 바뀌기 때문에, 다음 구현에서는 "정보를 늦게 불러오더라도 상단 요약 UI는 안정적으로 유지"를 별도 목표로 둡니다.
+
 가장 최근 세션에서는 iOS 26 기본 사진 앱의 Liquid Glass 인상을 맞추기 위해 `ToolbarItem` / `ToolbarItemGroup` 기반 system toolbar 전환을 시도했습니다. 사용자의 최신 피드백에 따라 하단도 `ToolbarItem` 기반을 유지합니다. 2026-04-24 커밋(`5d753c6`)에서 iOS 26 미만 경로를 `bottomBar` + `status` placement 조합으로 다시 조정했고, 사용자 확인 기준 의도한 3구역 배치가 맞는 상태입니다.
 
 가장 최근 세션에서 위 리팩토링을 실제로 수행했습니다. `MediaDetailView.swift`는 화면 조립 중심으로 줄였고, 기존 `MediaDetailSupport.swift`는 역할별 파일로 해체했습니다. 현재 우선순위는 더 이상 "어떻게 나눌지"가 아니라, 분리된 구조 위에서 편집 범위 결정과 남은 UX/polish 검증을 이어가는 것입니다.
@@ -115,6 +119,7 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - `GalleryFeature`가 비디오도 포함한 전체 미디어를 가져올지 결정하고, 필요하면 `PhotoLibraryClient`에 범용 fetch API를 추가합니다.
 - 뷰어에서 필요한 메타데이터(예: 비디오 여부, 즐겨찾기 여부, 생성일)는 기존 `PhotoAsset`로 충분한지 확인합니다.
 - 고해상도 이미지 로딩과 동영상 player item 생성 책임을 어디에 둘지 정합니다.
+- 상단 principal title에 필요한 최소 요약 데이터(날짜/시간/위치 fallback)를 어느 시점에 확보할지 정하고, 늦은 metadata 로딩 때문에 title이 재배치되지 않도록 정책을 정의합니다.
 
 ### Phase 2: MediaDetailFeature 상태 설계
 
@@ -137,6 +142,18 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - 사진은 더블 탭으로 확대/축소를 지원합니다.
 - 사진은 최초 진입 직후에도 별도 상호작용 없이 Y축 중앙 정렬되어야 합니다.
 - 위로 스와이프하면 사진이 위로 lift 되면서 하단에서 inline 정보 패널이 올라와야 합니다.
+
+### Phase 3B: Photos 스타일 스크롤 표면으로 재구성
+
+- `MediaDetailView`의 상세 정보 표현 모델을 `ZStack + bottom overlay panel + media lift` 구조에서 `세로 스크롤 가능한 단일 surface` 구조로 바꿉니다.
+- 상단 미디어 영역은 첫 화면에서 현재처럼 크게 보이되, 그 아래에 캡션/메타데이터/지도/후속 정보 영역이 실제 content로 이어지도록 배치합니다.
+- info 버튼과 upward swipe는 `showsDetailsPanel = true` 같은 단순 토글이 아니라, 동일한 스크롤 목적지(예: summary anchor / details anchor)로 이동하는 트리거로 통합합니다.
+- 가능하면 iOS 18의 `ScrollView` + `scrollPosition`/`scrollTargetBehavior` 계열로 "스크롤되지만 한 번에 턱 걸리는" 전환을 우선 검토하고, 제스처 충돌이 심하면 UIKit `UIScrollView` 기반 vertical coordinator를 보조 수단으로 둡니다.
+- 상단 toolbar는 content 바깥 chrome으로 유지하고, 하단 액션은 system toolbar 유지 가능성을 먼저 검토하되 scroll surface와 hierarchy 경고가 계속 충돌하면 `safeAreaInset` 또는 overlay action bar로 되돌리는 fallback도 허용합니다.
+- 현재 `currentDetails`의 summary/details 2단계 로딩 구조는 유지하되, expanded load 시점을 "패널 open"이 아니라 "details section에 진입할 때"로 옮깁니다.
+- summary/details 2단계 로딩을 유지하더라도, 상단 principal title은 placeholder에서 실데이터로 바뀌며 폭이 흔들리지 않도록 별도 안정화 경로를 둡니다.
+- 후보는 1) title용 최소 요약 데이터를 더 이른 시점에 preload, 2) 위치가 준비될 때까지도 고정 높이/폭 정책 유지, 3) 초기 fallback 문자열을 더 보수적으로 잡아 재배치를 줄이는 방식입니다.
+- 목표 UX는 "모달이 뜬다"가 아니라 "동일 화면이 위로 이어지며 아래 정보가 나타난다"로 명시합니다.
 
 ### Phase 3.5: 메타데이터 / 편집 범위 확장
 
@@ -174,6 +191,11 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 ### 현재 남은 후속 작업
 
 - 시뮬레이터에서 실제 진입/스와이프/동영상 재생 수동 확인
+- overlay 기반 상세정보 패널을 Photos 스타일 integrated scroll surface로 바꿀지 최종 확정
+- vertical scroll snap 구조와 horizontal media paging의 제스처 충돌 수준 확인
+- info 버튼 탭 시 details section으로 자연스럽게 이동하는 scroll animation 경로 설계
+- details section 진입 후에도 상단/하단 chrome을 어느 수준까지 유지할지 정책 확정
+- 상단 위치/날짜 title의 placeholder -> 실데이터 전환이 눈에 띄지 않도록 loading 타이밍 또는 fallback 정책 확정
 - 필요 시 현재 페이지 표시와 제스처 충돌 UX 미세 조정
 - 사진 세로 중앙 정렬이 최초 진입 시에도 완전히 해결됐는지 수동 검증
 - 하단 `ToolbarItem` 배치가 iPhone 작은 기기에서도 `share+favorite / info / crop+delete` 3구역으로 안정적으로 보이는지 확인
@@ -206,9 +228,10 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 ### 3. chrome은 ToolbarItem 기반으로 유지
 
 - 상단 title/menu/back affordance는 system navigation toolbar를 유지합니다.
-- 하단 액션도 사용자 의도에 맞춰 `ToolbarItem` 기반을 유지합니다.
+- 하단 액션도 사용자 의도에 맞춰 기본적으로는 `ToolbarItem` 기반을 유지합니다.
 - iOS 18에서는 `bottomBar`와 `status` placement를 조합해 중앙 info를 분리하고, 좌측/우측 그룹을 나눠 배치합니다.
 - public API 범위 안에서는 Photos 앱의 원형 그룹 버튼을 완전히 동일하게 만들 수 없으므로, 우선순위는 `ToolbarItem` 유지와 3구역 레이아웃 근사입니다.
+- 다만 Photos 스타일 integrated scroll surface 전환 후 `UIKitToolbar` hierarchy 경고나 safe area 충돌이 지속되면, 하단 액션은 overlay/safeAreaInset로 되돌리는 fallback을 허용합니다.
 
 ### 4. 제목 포맷은 Photos 앱 유사 정책
 
@@ -258,6 +281,9 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 | `ToolbarItem` 기반 상세 chrome이 `fullScreenCover`/hosting hierarchy와 충돌할 수 있음 | 높음 | `UIKitToolbar` 경고 재현 조건을 좁히고, 필요 시 overlay chrome 또는 presentation 구조 재조정 |
 | 위치 문자열 reverse geocoding이 느릴 수 있음 | 중간 | 좌표 fallback과 캐시를 두고, top bar는 placeholder에서 점진 업데이트 |
 | 지오코딩 결과가 지역마다 다른 깊이로 내려와 세부 위치 문자열 품질이 들쭉날쭉할 수 있음 | 높음 | `administrativeArea/locality/subLocality/name/thoroughfare` 조합 규칙과 중복 제거 규칙을 명시 |
+| vertical scroll + horizontal paging + zoom 제스처가 서로 충돌할 수 있음 | 높음 | scroll snap 대상은 화면 전체가 아닌 상위 surface로 제한하고, zoom 중에는 vertical snap 반응을 줄이는 정책을 명시 |
+| details section이 실제 scroll content가 되면 expanded metadata/map 로딩이 첫 진입 성능에 영향을 줄 수 있음 | 중간 | summary는 즉시, 무거운 metadata와 map은 details section 근처에서 lazy load |
+| title용 위치 메타데이터를 늦게 채우면 상단 principal title이 진입 직후 버벅여 보일 수 있음 | 높음 | title용 최소 요약 데이터는 preload하거나, fallback 문자열/고정 레이아웃으로 재배치를 줄임 |
 | 촬영 기기 메타데이터가 편집본, 다운로드본, 일부 비디오에서 비어 있을 수 있음 | 중간 | 메타데이터 추출 실패 시 "정보 없음" fallback을 허용하고 UX에 반영 |
 | 소속 앨범 조회가 많아지면 상세정보 시트 진입 시 지연이 생길 수 있음 | 중간 | 현재 asset 기준 필요한 시점에만 조회하고 결과 캐시를 검토 |
 | 사용자의 24시간 설정 / 한국어 표기 규칙이 formatter 구현과 어긋날 수 있음 | 중간 | `Date.FormatStyle` 또는 locale-aware formatter를 사용하고 실기기/시뮬레이터 검증 |

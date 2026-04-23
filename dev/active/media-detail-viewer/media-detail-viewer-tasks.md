@@ -52,6 +52,18 @@
   - 수용 기준: 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범이 표시됨
 - [ ] **3-10** 사진 편집 액션 정책 반영
   - 수용 기준: 편집 버튼이 crop-only 편집 또는 그에 준하는 확정된 동작을 수행함
+- [ ] **3-11** 상세정보 표현 모델을 overlay panel에서 integrated scroll surface로 재설계
+  - 수용 기준: `MediaDetailView`가 더 이상 하단 패널 offset/opacity 토글에 의존하지 않고, 미디어와 정보가 하나의 세로 content 흐름으로 이어짐
+- [ ] **3-12** info 버튼과 upward swipe를 동일한 scroll destination 이동으로 통합
+  - 수용 기준: 두 진입 방식 모두 같은 anchor/state를 사용하고, 중복 애니메이션 경로가 없음
+- [ ] **3-13** vertical scroll snap 정책 구현
+  - 수용 기준: 자유 스크롤만 되는 것이 아니라 top media 상태와 details 노출 상태 사이에 Photos 앱에 가까운 "턱 걸리는" 정착감이 있음
+- [ ] **3-14** 상세정보 lazy load 시점을 scroll surface 진입 기준으로 재정의
+  - 수용 기준: summary/details 분리 구조는 유지하되, expanded metadata/map 로딩은 details section 접근 시점에 시작됨
+- [ ] **3-15** 하단 액션 바 유지 방식 재검토
+  - 수용 기준: system `ToolbarItem` 유지 또는 overlay/safeAreaInset fallback 중 하나로 기준을 확정하고, `UIKitToolbar` 경고와 UX를 함께 검증함
+- [ ] **3-16** 상단 principal title metadata 안정화
+  - 수용 기준: 상세 진입 직후 위치/날짜 제목이 placeholder에서 실데이터로 바뀌더라도 폭/줄배치가 눈에 띄게 흔들리지 않음
 
 ---
 
@@ -99,10 +111,18 @@
   - 메모: 최근 1주/같은 해/과거 연도, 24시간/12시간 설정별 formatter는 구현됐고 수동 확인이 남아 있음
 - [ ] **5-5-q** 상세정보 시트 메타데이터 검증
   - 메모: 파일명/기기/앨범 표시 경로는 연결됐고, 사진 탐색 지연 완화를 위해 기기/앨범 상세 로딩은 inline info panel 진입 시점으로 늦췄음. 실제 자산에서 비어 있거나 누락되는 케이스 확인이 남아 있음
+- [ ] **5-5-q-1** Photos 스타일 scroll surface 전환 후 메타데이터 표시 검증
+  - 메모: details section이 실제 content가 되면 placeholder에서 실데이터로 바뀌는 타이밍과 스크롤 점프 여부를 함께 확인해야 함
+- [ ] **5-5-q-2** 상단 title metadata 전환 체감 검증
+  - 메모: 날짜만 먼저 보였다가 위치가 붙는 동안 principal title이 버벅이거나 줄이 바뀌는지 실제 기기에서 확인해야 함
 - [ ] **5-5-r** 편집 액션 정책 검증
   - 메모: crop-only 구현 시 저장/취소 흐름, 미구현 시 버튼 정책을 명확히 해야 함
 - [ ] **5-5-s** `UIKitToolbar` runtime 경고 원인 분리
   - 메모: 하단도 `ToolbarItem` 기반을 유지하기로 돌아섰으므로, 현재 `bottomBar/status` 조합에서 경고가 재현되는지 먼저 확인해야 함
+- [ ] **5-5-s-1** integrated scroll surface와 toolbar 조합 재검증
+  - 메모: overlay panel이 사라진 뒤에도 같은 hierarchy 경고가 남는지 분리해서 확인해야 함
+- [ ] **5-5-s-2** vertical/horizontal/zoom 제스처 충돌 수동 검증
+  - 메모: 특히 세로 스와이프가 details reveal로 해석될 때, `TabView` paging과 확대된 사진 pan을 방해하지 않는지 확인 필요
 - [x] **5-5-t** iPhone 13 mini 레이아웃 재검증
   - 메모: normal/immersive 전환 후 상단 spacing, 사진 좌우 여백, toolbar 배치가 작은 기기에서 더 쉽게 깨진다는 사용자 보고가 있음
 - [x] **5-5-u** 런타임 부가 로그 분류

@@ -84,6 +84,7 @@
 - 상세 뷰 chrome은 상단 toolbar / 하단 `safeAreaInset` / overlay chrome / system toolbar를 거쳐 왔고, 현재는 `ToolbarItem` 기반 toolbar 구성을 유지하면서 inline info panel과 함께 다듬는 중임
 - 상단 중앙 타이틀은 위치 유무에 따라 `위치 / 날짜+시간` 또는 `날짜 / 시간` 2줄 구조를 사용함
 - 위치 문자열은 `administrativeArea/locality/subLocality/thoroughfare/name` 조합 기반으로 확장되어 `수원시 - 매산로3가` 같은 표기를 시도함
+- 다만 상단 타이틀 데이터는 현재 summary metadata 비동기 로딩 결과에 의존해, 상세 진입 직후 날짜만 먼저 보였다가 잠시 뒤 위치가 붙으면서 타이틀 폭과 줄 배치가 미세하게 흔들리는 체감 이슈가 있음
 - 상세정보는 더 이상 `sheet(item:)` 기반 modal이 아니라, 위로 스와이프하거나 info 버튼으로 여는 inline panel 구조로 재설계 중
 - 파일명은 `PHAssetResource.originalFilename`, 소속 앨범은 `PHAssetCollection.fetchAssetCollectionsContaining`, 촬영 기기는 사진 자산의 TIFF metadata 추출을 사용함
 - 편집 버튼은 현재 alert만 띄우고 있으며 crop 또는 다른 실제 편집 기능은 없음
@@ -92,6 +93,8 @@
 - 가장 최근 리팩토링 세션에서 `MediaDetailView.swift` / `MediaDetailSupport.swift` 책임 분리를 실제로 수행함
 - 최신 사용자 확인 기준으로 리팩토링 후 빌드와 실행은 모두 정상 동작함
 - 최신 커밋 `5d753c6`에서 iOS 26 미만 하단 toolbar 배치를 `ToolbarItem(.bottomBar)` + `ToolbarItemGroup(.status)` + `ToolbarItem(.bottomBar)` 형태로 다시 조정했고, 사용자 확인 기준 의도한 레이아웃이 맞음
+- 현재 `MediaDetailView`의 상세정보 표시는 `showsDetailsPanel` 불리언과 `MediaDetailsPanel` overlay 조합으로 구현되어 있음
+- 이 구조는 기술적으로는 modal sheet가 아니지만, 화면 하단에 별도 레이어가 올라오는 인상이 강해서 iOS 기본 사진 앱의 "같은 화면 안에서 아래 내용이 이어지는" 감각과는 차이가 남
 - 현재 MediaDetail 핵심 파일 길이:
   - `PHOU/Presentation/MediaDetail/MediaDetailView.swift`: 456줄
   - `PHOU/Presentation/MediaDetail/MediaDetailAssetLoader.swift`: 340줄
@@ -218,6 +221,12 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 ### 5. 이번 사용자 피드백으로 scope가 다시 바뀜
 
 - 상세 뷰 사진은 최초 진입 시점부터 Y축 중앙 정렬이 맞아야 함
+- 상세정보는 "패널을 띄우는 것"보다 "같은 상세 화면을 위로 더 스크롤하면 아래 정보가 이어서 나타나는 것"에 가까워야 함
+- info 버튼과 upward swipe는 같은 boolean panel open/close가 아니라, 동일한 세로 스크롤 상태 전환 또는 anchor 이동으로 수렴하는 편이 맞음
+- 상단 toolbar가 정보 위에 남아 보이는 reference UX를 맞추려면, 정보 영역이 presentation layer가 아니라 content layer여야 한다는 가설이 강함
+- 따라서 다음 구현의 핵심은 패널 스타일/애니메이션 미세조정보다 `MediaDetailView`의 레이아웃 모델 자체를 overlay panel 구조에서 integrated scroll surface 구조로 재정의하는 것임
+- 성능 이유로 늦춘 metadata 로딩 때문에 상단 위치/날짜 title이 placeholder에서 실데이터로 바뀌며 살짝 버벅이는 문제도 이번 범위에 포함해야 함
+- 특히 principal title은 "날짜만 먼저 표시 -> 위치까지 합쳐 재배치" 흐름이 눈에 띄지 않도록 초기 표시 정책과 로딩 타이밍을 다시 설계해야 함
 - 상단/하단 chrome은 커스텀 디자인 대신 기본 SwiftUI 요소를 사용해야 함
 - 편집은 `PHContentEditingController` 기반 시스템 편집 호출을 기대하지 않고, 앱 내 구현이 필요하면 crop-only부터 시작
 - 위치는 가능한 경우 `광역/시군구 - 동/가/세부지명` 수준까지 더 자세히 표시
