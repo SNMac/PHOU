@@ -15,7 +15,7 @@
 
 이번 세션에서는 상세 뷰를 "몰입형 미디어 레이어 + 정보 chrome" 구조로 확장해, 단일 탭 배경 토글, 더블 탭 줌, 상하단 액션 바, 현재 asset 메타데이터 표시까지 같은 흐름에서 정리합니다. 지연 완화는 모든 페이지를 동시에 고해상도 로딩하던 기존 방식 대신 현재/인접 페이지 중심 로딩으로 보정합니다.
 
-추가 사용자 피드백으로 scope가 다시 조정되었습니다. 상세 뷰는 iPhone 기본 사진 앱에 더 가깝게 다듬어야 하며, 현재 커스텀 capsule/circle chrome은 기본 SwiftUI toolbar/button/sheet 중심으로 단순화해야 합니다. 또한 최초 진입 시 사진이 Y축 중앙에 오지 않는 버그는 아직 미해결로 다시 열어야 하고, 위치/날짜 표기 규칙과 상세정보 시트 범위도 확대해야 합니다. 편집 기능은 공개 시스템 사진 편집 UI를 앱 내부에서 직접 띄우는 방향이 아니라, 필요 시 crop-only 커스텀 편집으로 축소하는 쪽으로 재정의합니다.
+추가 사용자 피드백으로 scope가 다시 조정되었습니다. 상세 뷰는 iPhone 기본 사진 앱에 더 가깝게 다듬어야 하며, 상단/하단 chrome은 fade되는 overlay 성격으로 유지하되 제스처와 safe area 변화에 자연스럽게 반응해야 합니다. 또한 상세 정보는 별도 modal sheet보다 Photos 앱처럼 아래에서 올라오는 inline info panel 구조가 더 맞는 것으로 범위가 재정의되었습니다. 편집 기능은 공개 시스템 사진 편집 UI를 앱 내부에서 직접 띄우는 방향이 아니라, 필요 시 crop-only 커스텀 편집으로 축소하는 쪽으로 재정의합니다.
 
 ---
 
@@ -43,7 +43,7 @@
 | 사진 초기 세로 정렬 | ⚠️ 보정 후 재검증 필요 | `LayoutAwareScrollView` 기반 재-centering 경로를 추가했지만 실제 사용자 재현이 사라졌는지는 아직 수동 확인 필요 |
 | 상세 chrome 구성 | ✅ 기본 SwiftUI 전환 반영 | `NavigationStack + toolbar + safeAreaInset` 구조로 전환됨 |
 | 위치/날짜 포맷 | ✅ 1차 구현 완료 | 위치 유무에 따른 2줄 타이틀과 최근성/24시간 설정 기반 포맷이 코드에 반영됨 |
-| 상세정보 시트 | ✅ 1차 확장 완료 | 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범 표시 경로가 추가됨 |
+| 상세정보 표시 | ⚠️ 구조 전환 중 | modal sheet 대신 swipe-up inline info panel로 전환됐고, 실제 체감/세부 레이아웃 검증이 남음 |
 | 편집 기능 | ⚠️ 미정 | 현재는 안내 alert만 표시하며, crop-only 편집 범위를 실제로 구현할지 결정 필요 |
 
 ### 현재 구현 반영 상태
@@ -58,7 +58,7 @@
 - 상단/하단 chrome은 `NavigationStack + toolbar + safeAreaInset` 기반으로 전환됨
 - 중앙 타이틀은 위치 유무에 따라 `위치 / 날짜+시간` 또는 `날짜 / 시간` 2줄 구조를 사용함
 - 위치 표기는 `administrativeArea/locality/subLocality/thoroughfare/name` 조합 기반의 best-effort 상세 문자열로 확장됨
-- 상세정보 시트는 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 표시하도록 확장됨
+- 상세정보는 이제 modal sheet 대신 inline panel 후보 구조로 전환 중이며, 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 같은 데이터 소스로 표시함
 - 촬영 기기 표시는 현재 사진 자산에서 `requestImageDataAndOrientation` + TIFF metadata 추출 기반의 best-effort 구현이며, 비디오 및 일부 자산은 `정보 없음` fallback이 남음
 - 편집 버튼은 현재 "공개 시스템 사진 편집 UI를 직접 열 수 없다"는 안내 alert만 연결되어 있음
 - `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build` 재성공
@@ -118,14 +118,15 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - 위치가 있으면 상단 줄에 위치, 하단 줄에 날짜+시간을 표시하고, 위치가 없으면 상단 줄에 날짜, 하단 줄에 시간을 표시합니다.
 - 날짜는 현재 시점 기준 최근 1주 이내면 요일, 같은 해면 `M월 d일`, 그보다 과거면 `yyyy년 M월 d일` 규칙을 따릅니다.
 - 시간은 사용자의 24시간 표기 설정을 따라 24시 또는 `오전`/`오후` 12시간 형식으로 표시합니다.
-- 하단 액션은 커스텀 chrome 대신 기본 SwiftUI 요소를 사용해 공유, 상세정보, 편집(또는 crop) 액션을 제공합니다.
-- 단일 탭으로 배경을 `systemBackground` / black 사이에서 토글합니다.
+- 하단 액션은 Photos 앱처럼 떠 있는 overlay 형태를 유지하되, 단일 탭 immersive 전환 시 chrome이 fading되며 함께 숨겨져야 합니다.
+- 단일 탭으로 배경을 `systemBackground` / black 사이에서 토글하고, 이때 사진 viewport도 safe area 고려/무시 상태에 맞춰 함께 확장 또는 축소되어야 합니다.
 - 사진은 더블 탭으로 확대/축소를 지원합니다.
 - 사진은 최초 진입 직후에도 별도 상호작용 없이 Y축 중앙 정렬되어야 합니다.
+- 위로 스와이프하면 사진이 위로 lift 되면서 하단에서 inline 정보 패널이 올라와야 합니다.
 
 ### Phase 3.5: 메타데이터 / 편집 범위 확장
 
-- 상세정보 시트에 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 표시할 수 있도록 데이터 소스를 확장합니다.
+- inline 정보 패널에 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 표시할 수 있도록 데이터 소스를 확장합니다.
 - 위치는 가능한 경우 `광역/시군구 - 동/가/세부지명` 수준까지 조합하고, 부족한 경우 안전한 fallback 규칙을 둡니다.
 - 파일명은 `PHAssetResource` 기반으로 가져오는 방향을 우선 검토합니다.
 - 소속 앨범은 PhotoKit album membership 조회로 수집합니다.
@@ -175,8 +176,8 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 
 ### 3. chrome은 기본 SwiftUI 요소 우선
 
-- 상단/하단 액션 영역은 bespoke capsule/circle 디자인보다 기본 SwiftUI toolbar, `ToolbarItem`, `safeAreaInset`, `Button`, `Menu`, `sheet` 조합을 우선 사용합니다.
-- 현재 커스텀 chrome은 기능 검증용 초안으로 간주하고, 최종 UX 방향으로 고정하지 않습니다.
+- 상단/하단 액션 영역은 시스템스러운 시각 언어를 유지하되, 실제 Photos 레퍼런스처럼 overlay chrome과 inline 정보 패널을 함께 다루기 위해 toolbar만으로 고정하지 않습니다.
+- `ToolbarItem`은 네이티브 감은 있지만, 현재 요구사항의 가운데 묶음 하단 액션과 패널 위 부유 배치를 재현하기 어려워 overlay 기반을 우선 유지합니다.
 
 ### 4. 제목 포맷은 Photos 앱 유사 정책
 
@@ -223,6 +224,7 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 | 소속 앨범 조회가 많아지면 상세정보 시트 진입 시 지연이 생길 수 있음 | 중간 | 현재 asset 기준 필요한 시점에만 조회하고 결과 캐시를 검토 |
 | 사용자의 24시간 설정 / 한국어 표기 규칙이 formatter 구현과 어긋날 수 있음 | 중간 | `Date.FormatStyle` 또는 locale-aware formatter를 사용하고 실기기/시뮬레이터 검증 |
 | `NavigationStack`를 full-screen 뷰어 내부에 추가하면서 기존 presentation/navigation transition과 상호작용 차이가 생길 수 있음 | 중간 | 실제 진입/종료 애니메이션과 toolbar 동작을 시뮬레이터에서 수동 확인 |
+| inline 정보 패널의 drag gesture가 paging / zoom / dismiss 제스처와 충돌할 수 있음 | 높음 | 수직 drag 임계값을 두고, 패널 open/close와 일반 미디어 탐색 제스처를 분리 검증 |
 
 ---
 
@@ -245,6 +247,8 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - [x] 상단/하단 chrome이 커스텀 capsule/circle 대신 기본 SwiftUI 요소로 정리됨
 - [x] 위치 표기가 가능한 경우 `시/도 - 동/가/세부지명` 수준까지 더 자세히 표시됨
 - [x] 중앙 타이틀이 위치/날짜/시간을 Photos 앱 유사 규칙으로 2줄 표시함
-- [x] 상세정보 시트가 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 표시함
+- [x] inline 정보 패널이 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 표시할 데이터 경로를 사용함
 - [ ] 편집 액션 정책이 확정되고 필요 시 crop-only 편집이 동작함
 - [ ] 진입/종료 및 mixed media 전환이 시뮬레이터에서 확인됨
+- [ ] immersive 전환 시 chrome fade와 safe-area-aware viewport 확장/축소가 체감상 자연스럽게 동작함
+- [ ] 위로 스와이프하는 inline 정보 패널이 reference UX와 비슷한 흐름으로 동작함

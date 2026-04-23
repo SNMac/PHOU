@@ -15,11 +15,13 @@ struct MediaDetailView: View {
     @Bindable var store: StoreOf<MediaDetailFeature>
     let transitionNamespace: Namespace.ID?
 
+    private let chromeAnimation = Animation.easeInOut(duration: 0.24)
+
     @State private var usesImmersiveBackground = false
+    @State private var showsDetailsPanel = false
     @State private var currentDetails: MediaAssetDetails?
     @State private var shareItems: [Any] = []
     @State private var isPreparingShare = false
-    @State private var infoItem: MediaInfoItem?
     @State private var showsCropUnavailableAlert = false
     @State private var showsAdjustmentUnavailableAlert = false
     @State private var adjustmentUnavailableMessage = ""
@@ -37,6 +39,10 @@ struct MediaDetailView: View {
 
     private var backgroundColor: Color {
         usesImmersiveBackground ? .black : Color(uiColor: .systemBackground)
+    }
+
+    private var chromeOpacity: Double {
+        usesImmersiveBackground ? 0 : 1
     }
 
     private var displayedDetails: MediaAssetDetails? {
@@ -64,10 +70,6 @@ struct MediaDetailView: View {
                 AlbumPickerSheet(albums: store.userAlbums) { albumID in
                     store.send(.view(.albumSelected(albumID)))
                 }
-            }
-            .sheet(item: $infoItem) { item in
-                MediaInfoSheet(details: item.details)
-                    .presentationDetents([.medium])
             }
             .alert("크롭은 다음 세션에서 이어서 구현할게요", isPresented: $showsCropUnavailableAlert) {
                 Button("확인", role: .cancel) {}
@@ -111,52 +113,47 @@ struct MediaDetailView: View {
     @ViewBuilder
     private var rootContent: some View {
         let navigationContent = NavigationStack {
-            content
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            store.send(.view(.dismissTapped))
-                        } label: {
-                            Image(systemName: "chevron.backward")
-                        }
-                    }
+            GeometryReader { proxy in
+                let layout = MediaDetailLayout(
+                    containerSize: proxy.size,
+                    safeAreaInsets: proxy.safeAreaInsets,
+                    usesImmersiveBackground: usesImmersiveBackground,
+                    showsDetailsPanel: showsDetailsPanel
+                )
 
-                    ToolbarItem(placement: .principal) {
-                        titleView
-                    }
+                ZStack {
+                    backgroundColor
+                        .ignoresSafeArea()
 
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
-                            Button {
-                                store.send(.view(.addToAlbumTapped))
-                            } label: {
-                                Label("앨범에 추가", systemImage: "text.badge.plus")
-                            }
+                    content(layout: layout)
+                        .offset(y: showsDetailsPanel ? -layout.mediaLift : 0)
+                        .animation(chromeAnimation, value: showsDetailsPanel)
+                        .animation(chromeAnimation, value: usesImmersiveBackground)
 
-                            Button {
-                                presentUnavailableAdjustment(
-                                    "날짜 및 시간 조정은 아직 준비 중이에요."
-                                )
-                            } label: {
-                                Label("날짜 및 시간 조정", systemImage: "calendar.badge.clock")
-                            }
+                    detailsPanel(layout: layout)
 
-                            Button {
-                                presentUnavailableAdjustment(
-                                    "위치 조정은 Apple 지도 연동 설계와 같이 다음 단계에서 다루겠습니다."
-                                )
-                            } label: {
-                                Label("위치 조정", systemImage: "mappin.and.ellipse")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis.circle")
-                        }
+                    topChrome(safeAreaInsets: proxy.safeAreaInsets)
+                    bottomChrome(safeAreaInsets: proxy.safeAreaInsets)
+                }
+                .contentShape(Rectangle())
+                .simultaneousGesture(detailsRevealGesture)
+                .animation(chromeAnimation, value: usesImmersiveBackground)
+                .animation(chromeAnimation, value: showsDetailsPanel)
+                .navigationBarHidden(true)
+                .statusBarHidden(usesImmersiveBackground)
+                .onChange(of: currentAssetID) { _, _ in
+                    showsDetailsPanel = false
+                }
+                .onChange(of: usesImmersiveBackground) { _, isImmersive in
+                    if isImmersive {
+                        showsDetailsPanel = false
                     }
                 }
-                .safeAreaInset(edge: .bottom) {
-                    bottomBar
+                .task(id: detailsPanelTaskID) {
+                    guard showsDetailsPanel else { return }
+                    await loadExpandedDetails()
                 }
+            }
         }
 
         if let transitionNamespace {
@@ -168,38 +165,32 @@ struct MediaDetailView: View {
     }
 
     @ViewBuilder
-    private var content: some View {
-        let detailContent = GeometryReader { proxy in
-            ZStack {
-                backgroundColor
-                    .ignoresSafeArea()
-
-                TabView(
-                    selection: Binding(
-                        get: { store.currentIndex },
-                        set: { store.send(.view(.currentIndexChanged($0))) }
-                    )
-                ) {
-                    ForEach(Array(store.items.enumerated()), id: \.element.id) { index, asset in
-                        MediaPageView(
-                            asset: asset,
-                            containerSize: proxy.size,
-                            isActive: index == store.currentIndex,
-                            shouldLoad: abs(index - store.currentIndex) <= 1,
-                            backgroundColor: usesImmersiveBackground ? .black : .systemBackground,
-                            onSingleTap: toggleBackground
-                        )
-                        .tag(index)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .ignoresSafeArea()
+    private func content(layout: MediaDetailLayout) -> some View {
+        TabView(
+            selection: Binding(
+                get: { store.currentIndex },
+                set: { store.send(.view(.currentIndexChanged($0))) }
+            )
+        ) {
+            ForEach(Array(store.items.enumerated()), id: \.element.id) { index, asset in
+                MediaPageView(
+                    asset: asset,
+                    viewportSize: layout.viewportSize,
+                    isActive: index == store.currentIndex,
+                    shouldLoad: abs(index - store.currentIndex) <= 1,
+                    backgroundColor: usesImmersiveBackground ? .black : .systemBackground,
+                    onSingleTap: toggleBackground
+                )
+                .frame(width: layout.viewportSize.width, height: layout.viewportSize.height)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .tag(index)
             }
         }
-        detailContent
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .ignoresSafeArea(usesImmersiveBackground ? .all : [])
     }
 
-    private var bottomBar: some View {
+    private func bottomChrome(safeAreaInsets: EdgeInsets) -> some View {
         HStack(spacing: 20) {
             chromeCircleButton(
                 systemImage: isPreparingShare ? "ellipsis.circle" : "square.and.arrow.up",
@@ -252,12 +243,18 @@ struct MediaDetailView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 10)
+        .padding(.bottom, max(safeAreaInsets.bottom, 12) + 10)
+        .opacity(chromeOpacity)
+        .allowsHitTesting(!usesImmersiveBackground)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 
     private func toggleBackground() {
-        withAnimation(.easeInOut(duration: 0.2)) {
+        if showsDetailsPanel {
+            closeDetailsPanel()
+        }
+
+        withAnimation(chromeAnimation) {
             usesImmersiveBackground.toggle()
         }
     }
@@ -275,6 +272,15 @@ struct MediaDetailView: View {
         currentDetails = details
     }
 
+    private func loadExpandedDetails() async {
+        guard let currentAsset else { return }
+
+        let assetID = currentAsset.id
+        let details = await MediaDetailAssetLoader.details(for: currentAsset)
+        guard assetID == currentAssetID else { return }
+        currentDetails = details
+    }
+
     private func prepareShare(for asset: PhotoAsset) async {
         isPreparingShare = true
         defer { isPreparingShare = false }
@@ -285,19 +291,7 @@ struct MediaDetailView: View {
     }
 
     private func presentInfo() {
-        guard let currentAsset else { return }
-
-        infoItem = MediaInfoItem(details: displayedDetails ?? .placeholder(for: currentAsset))
-
-        Task {
-            let assetID = currentAsset.id
-            let details = await MediaDetailAssetLoader.details(for: currentAsset)
-
-            guard assetID == currentAssetID else { return }
-
-            currentDetails = details
-            infoItem = MediaInfoItem(details: details)
-        }
+        openDetailsPanel()
     }
 
     private func presentUnavailableAdjustment(_ message: String) {
@@ -316,8 +310,62 @@ struct MediaDetailView: View {
         )
     }
 
-    private var titleView: some View {
-        VStack(spacing: 1) {
+    private func topChrome(safeAreaInsets: EdgeInsets) -> some View {
+        HStack(spacing: 14) {
+            chromeCircleButton(
+                systemImage: "chevron.backward",
+                tint: .primary,
+                isDisabled: false
+            ) {
+                store.send(.view(.dismissTapped))
+            }
+
+            Spacer(minLength: 0)
+
+            titleCapsule
+
+            Spacer(minLength: 0)
+
+            Menu {
+                Button {
+                    store.send(.view(.addToAlbumTapped))
+                } label: {
+                    Label("앨범에 추가", systemImage: "text.badge.plus")
+                }
+
+                Button {
+                    presentUnavailableAdjustment(
+                        "날짜 및 시간 조정은 아직 준비 중이에요."
+                    )
+                } label: {
+                    Label("날짜 및 시간 조정", systemImage: "calendar.badge.clock")
+                }
+
+                Button {
+                    presentUnavailableAdjustment(
+                        "위치 조정은 Apple 지도 연동 설계와 같이 다음 단계에서 다루겠습니다."
+                    )
+                } label: {
+                    Label("위치 조정", systemImage: "mappin.and.ellipse")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 58, height: 58)
+                    .background(.thinMaterial)
+                    .clipShape(Circle())
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, safeAreaInsets.top + 10)
+        .opacity(chromeOpacity)
+        .allowsHitTesting(!usesImmersiveBackground)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var titleCapsule: some View {
+        VStack(spacing: 2) {
             Text(displayedDetails?.titlePrimaryText ?? "사진")
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(1)
@@ -327,7 +375,92 @@ struct MediaDetailView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(.thinMaterial)
+        .clipShape(Capsule())
         .multilineTextAlignment(.center)
+    }
+
+    @ViewBuilder
+    private func detailsPanel(layout: MediaDetailLayout) -> some View {
+        let details = displayedDetails ?? currentAsset.map(MediaAssetDetails.placeholder)
+
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(Color.secondary.opacity(0.35))
+                .frame(width: 36, height: 5)
+                .padding(.top, 10)
+                .padding(.bottom, 16)
+
+            if let details {
+                ScrollView(showsIndicators: false) {
+                    MediaInlineInfoContent(details: details)
+                        .padding(.bottom, 120)
+                }
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: layout.panelHeight, alignment: .top)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.12))
+                .frame(height: 0.5)
+                .padding(.top, 54)
+        }
+        .offset(y: showsDetailsPanel ? 0 : layout.panelHiddenOffset)
+        .opacity(showsDetailsPanel ? 1 : 0.001)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .allowsHitTesting(showsDetailsPanel)
+        .highPriorityGesture(detailsDismissGesture)
+    }
+
+    private var detailsRevealGesture: some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onEnded { value in
+                guard abs(value.translation.height) > abs(value.translation.width) else { return }
+
+                if value.translation.height < -72 {
+                    openDetailsPanel()
+                } else if value.translation.height > 72, showsDetailsPanel {
+                    closeDetailsPanel()
+                }
+            }
+    }
+
+    private var detailsDismissGesture: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onEnded { value in
+                guard value.translation.height > 48 else { return }
+                closeDetailsPanel()
+            }
+    }
+
+    private func openDetailsPanel() {
+        if usesImmersiveBackground {
+            withAnimation(chromeAnimation) {
+                usesImmersiveBackground = false
+            }
+        }
+
+        withAnimation(chromeAnimation) {
+            showsDetailsPanel = true
+        }
+    }
+
+    private func closeDetailsPanel() {
+        withAnimation(chromeAnimation) {
+            showsDetailsPanel = false
+        }
+    }
+
+    private var detailsPanelTaskID: String {
+        "\(currentAssetID)-\(showsDetailsPanel)"
     }
 
     private func chromeCircleButton(
@@ -365,7 +498,7 @@ struct MediaDetailView: View {
 
 private struct MediaPageView: View {
     let asset: PhotoAsset
-    let containerSize: CGSize
+    let viewportSize: CGSize
     let isActive: Bool
     let shouldLoad: Bool
     let backgroundColor: UIColor
@@ -376,7 +509,7 @@ private struct MediaPageView: View {
         case .image, .unknown:
             MediaImagePageView(
                 assetID: asset.id,
-                containerSize: containerSize,
+                containerSize: viewportSize,
                 shouldLoad: shouldLoad,
                 backgroundColor: backgroundColor,
                 onSingleTap: onSingleTap
@@ -725,12 +858,88 @@ private struct MediaInfoSheet: View {
     }
 }
 
+private struct MediaInlineInfoContent: View {
+    let details: MediaAssetDetails
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("캡션 추가")
+                .font(.title3.weight(.medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 24)
+
+            Divider()
+                .padding(.horizontal, 24)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text(details.captureDateText)
+                    .font(.title2.weight(.semibold))
+
+                infoLine(systemImage: "checkmark.square", text: details.filenameText)
+                infoLine(systemImage: "camera", text: details.deviceText)
+                infoLine(systemImage: "arrow.up.left.and.down.right.magnifyingglass", text: details.pixelSizeText)
+                infoLine(systemImage: "mappin.and.ellipse", text: details.locationText)
+                infoLine(systemImage: "rectangle.stack.badge.person.crop", text: details.albumText)
+            }
+            .padding(.horizontal, 24)
+        }
+        .padding(.top, 6)
+    }
+
+    private func infoLine(systemImage: String, text: String) -> some View {
+        Label {
+            Text(text)
+                .foregroundStyle(.secondary)
+        } icon: {
+            Image(systemName: systemImage)
+                .foregroundStyle(.secondary)
+        }
+        .font(.body)
+    }
+}
+
 private final class LayoutAwareScrollView: UIScrollView {
     var onLayout: ((UIScrollView) -> Void)?
 
     override func layoutSubviews() {
         super.layoutSubviews()
         onLayout?(self)
+    }
+}
+
+private struct MediaDetailLayout {
+    let containerSize: CGSize
+    let safeAreaInsets: EdgeInsets
+    let usesImmersiveBackground: Bool
+    let showsDetailsPanel: Bool
+
+    private let topChromeReserve: CGFloat = 108
+    private let bottomChromeReserve: CGFloat = 134
+
+    var viewportSize: CGSize {
+        guard !usesImmersiveBackground else { return containerSize }
+
+        let panelAdjustment = showsDetailsPanel ? 36 : 0
+        let reservedHeight = safeAreaInsets.top
+            + safeAreaInsets.bottom
+            + topChromeReserve
+            + bottomChromeReserve
+            + CGFloat(panelAdjustment)
+        let availableHeight = containerSize.height - reservedHeight
+        let height = max(availableHeight, 1)
+        return CGSize(width: containerSize.width, height: height)
+    }
+
+    var panelHeight: CGFloat {
+        min(max(containerSize.height * 0.46, 300), 430)
+    }
+
+    var panelHiddenOffset: CGFloat {
+        panelHeight + safeAreaInsets.bottom + 24
+    }
+
+    var mediaLift: CGFloat {
+        min(panelHeight * 0.22, 88)
     }
 }
 
