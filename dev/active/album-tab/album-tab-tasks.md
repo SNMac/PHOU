@@ -2,7 +2,7 @@
 
 **GitHub Issue**: #5  
 **Last Updated**: 2026-04-23  
-**Status**: ✅ 구현 완료, 시뮬레이터 동작 확인. 터치 영역/구분선 보정 반영 후 최종 수동 재검증 필요.
+**Status**: ✅ 구현 완료, 시뮬레이터 동작 확인. mixed media 후속 이슈 분리, zoom navigation 검토 종료.
 
 ---
 
@@ -79,13 +79,13 @@
 
 ## Phase 6: 후속 UX 검토 (S)
 
-- [ ] **6-1** 앨범 셀 기반 zoom navigation 전환 방향 결정
+- [x] **6-1** 앨범 셀 기반 zoom navigation 전환 검토 종료
   - 검토 결과: SwiftUI 공식 `matchedTransitionSource` + `navigationTransition(.zoom(...))` 는 `iOS 18+`
   - 현재 타깃: `iOS/iPadOS 17.0+`
-  - 선택지: 배포 타깃 상향 또는 커스텀 전환 구현
-- [ ] **6-2** mixed media 표시 방식 검토
+  - 결정: 기능 진행하지 않음, 기본 push navigation 유지
+- [x] **6-2** mixed media 표시 방식 검토
   - 현재 album fetch는 사진/동영상을 모두 유지함
-  - 필요 시 비디오 배지, 재생 시간, 필터 UI 등 후속 검토 가능
+  - 후속 feature issue로 분리하여 추적
 
 ---
 
@@ -94,4 +94,5 @@
 - [x] 모든 구현 체크리스트 항목 완료
 - [x] `xcodebuild` 빌드 오류 및 Swift 6 concurrency 경고 없음
 - [x] 앨범 탭 행 전체 터치 영역 및 구분선 수동 확인
-- [ ] GitHub Issue #5 close
+- [x] zoom navigation 전환 검토 종료
+- [x] GitHub Issue #5 close

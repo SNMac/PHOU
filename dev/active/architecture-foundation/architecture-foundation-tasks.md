@@ -74,6 +74,8 @@ Last Updated: 2026-04-22 (5차 세션 종료)
 - [x] PR #2 Merge
 - [x] GitHub Issue #1 Close
 - [x] `.limited` 상태 사용자 안내 배너 구현 완료
+- [x] Domain `PhotoAsset.MediaType` 기준으로 mixed media 확장 가능 구조 확보
+- [x] mixed media UI 정책은 GitHub Issue #8에서 후속 추적
 
 ---
 

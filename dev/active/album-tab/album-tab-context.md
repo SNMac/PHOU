@@ -1,7 +1,7 @@
 # Album Tab — 컨텍스트 및 핵심 파일
 
 **Last Updated**: 2026-04-23  
-**Status**: ✅ 구현 완료, 시뮬레이터 동작 확인됨. 앨범 행 터치 영역 및 구분선 보정 반영, 최종 수동 재확인 필요.
+**Status**: ✅ PR 머지 및 Issue #5 close 완료. mixed media 후속은 Issue #8로 분리됨.
 
 ---
 
@@ -122,7 +122,7 @@ AlbumView는 navigationDestination에서 `$store.scope`가 필요하므로 `@Bin
 - 썸네일 영역 앞쪽이 비어 보이지 않도록 전체 폭으로 구분선 표시
 - 기존 `List(.insetGrouped)` 스타일과 행 레이아웃은 유지
 
-### 8. Album row 기반 zoom navigation 전환 검토
+### 8. Album row 기반 zoom navigation 전환 검토 종료
 
 사용자 요구사항은 기본 push 애니메이션 대신, 앨범 행에서 확대되며 상세 그리드로 전환되는 내비게이션 애니메이션이다.
 
@@ -146,7 +146,13 @@ SwiftUI의 공식 해법은 아래 조합이다.
 1. **배포 타깃 상향** — iOS 18+로 올린 뒤 공식 API 사용
 2. **커스텀 전환 구현** — 오버레이/매칭 애니메이션 기반으로 비슷한 효과를 직접 구현
 
-현재는 타깃 유지가 우선이므로 미적용 상태로 유지하는 것이 안전하다.
+검토 결과, 현재 프로젝트에서는 이 기능을 진행하지 않기로 결정했다.
+
+- 공식 API는 `iOS 18+` 요구
+- 현재 타깃은 `iOS/iPadOS 17.0+`
+- 이번 기능의 핵심 범위 대비 구현/유지 비용이 큼
+
+따라서 앨범 탭은 기본 push navigation 애니메이션을 유지한다.
 
 ### 9. 앨범 상세의 mixed media 의도 반영
 
@@ -185,13 +191,9 @@ e158a5b feat: #5 - coverAssetId 필드 정리 및 fetchAlbums 첫 번째 에셋 
 
 ---
 
-## 다음 단계
+## 후속 추적 사항
 
-1. **터치 영역/구분선 최종 수동 테스트** — 앨범 셀의 빈 여백 탭과 separator 전체 폭 표시 재확인
-2. **빈 앨범 / 권한 없음 시나리오 확인**
-3. **mixed media UI 확장 검토** — 비디오 배지/길이 표시 등 필요 여부 판단
-4. **zoom navigation 전환 필요 시 방향 결정** — iOS 18 상향 vs 커스텀 전환
-5. **PR 생성** — `feature/#5-album` → `develop` (GitHub Issue #5 close)
+1. **mixed media UI 후속 작업 추적** — 비디오 배지/길이 표시 등은 GitHub Issue #8에서 관리
 
 ---
 
