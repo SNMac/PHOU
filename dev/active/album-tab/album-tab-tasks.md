@@ -2,7 +2,7 @@
 
 **GitHub Issue**: #5  
 **Last Updated**: 2026-04-23  
-**Status**: ✅ 구현 완료 (빌드 성공)
+**Status**: ✅ 구현 완료, 시뮬레이터 동작 확인. 터치 영역/구분선 보정 반영 후 최종 수동 재검증 필요.
 
 ---
 
@@ -52,6 +52,14 @@
   - ⚠️ **중요**: `$store.scope(...)` 사용 위해 `@Bindable var store` 필요 (`let store` 불가)
 - [x] **4-4** 로딩 / 에러 / 권한 없음 상태 처리
   - 커밋: `e2de10f`, `cb3f69a`, `41e89e3`
+- [x] **4-5** 앨범 Row 터치 영역 보정
+  - 증상: `.buttonStyle(.plain)` 환경에서 썸네일/텍스트 위주로만 탭되는 것처럼 느껴짐
+  - 조치: `albumRow(_:)`의 라벨 `HStack`에 `.frame(maxWidth: .infinity, alignment: .leading)`, `.contentShape(Rectangle())`, `.padding(.vertical, 4)` 추가
+  - 목적: 리스트 행의 빈 여백까지 일관된 히트 테스트 확보
+- [x] **4-6** 앨범 Row 구분선 전체 폭 보정
+  - 증상: 셀 사이 구분선이 row 전체 폭으로 이어지지 않고 콘텐츠 inset 영향을 받음
+  - 조치: `albumRow(_:)` 버튼에 `.alignmentGuide(.listRowSeparatorLeading) { _ in 0 }` 와 `.alignmentGuide(.listRowSeparatorTrailing) { dimensions in dimensions.width }` 추가
+  - 목적: separator 시작/끝 위치를 모두 row 기준으로 맞춰 전체 폭 표시
 
 ---
 
@@ -59,8 +67,10 @@
 
 - [x] **5-1** `xcodebuild build` 성공 (Swift 6 concurrency 경고 없음)
   - 최종 빌드: `BUILD SUCCEEDED`
-- [x] **5-2** 시뮬레이터에서 앨범 탭 동작 확인 (미완료 — 수동 테스트 필요)
-- [x] **5-3** 빈 앨범 / 권한 없음 상태 시나리오 확인 (미완료 — 수동 테스트 필요)
+- [x] **5-2** 시뮬레이터에서 앨범 탭 동작 확인
+  - 앨범 진입 및 탭 기본 동작은 확인됨
+- [ ] **5-3** 터치 영역/구분선 보정 후 앨범 셀 빈 여백 탭 및 separator 전체 폭 재확인
+- [ ] **5-4** 빈 앨범 / 권한 없음 상태 시나리오 확인
 
 ---
 
@@ -68,5 +78,5 @@
 
 - [x] 모든 구현 체크리스트 항목 완료
 - [x] `xcodebuild` 빌드 오류 및 Swift 6 concurrency 경고 없음
-- [x] 앨범 탭 기능 시뮬레이터 동작 확인 (수동 테스트 필요)
+- [ ] 앨범 탭 행 전체 터치 영역 및 구분선 수동 확인
 - [ ] GitHub Issue #5 close
