@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVKit
+import UIKit
 import ComposableArchitecture
 @preconcurrency import Photos
 
@@ -14,27 +15,29 @@ struct MediaDetailView: View {
     @Bindable var store: StoreOf<MediaDetailFeature>
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color.black
+        GeometryReader { proxy in
+            ZStack(alignment: .top) {
+                Color.black
+                    .ignoresSafeArea()
+
+                TabView(
+                    selection: Binding(
+                        get: { store.currentIndex },
+                        set: { store.send(.view(.currentIndexChanged($0))) }
+                    )
+                ) {
+                    ForEach(Array(store.items.enumerated()), id: \.element.id) { index, asset in
+                        MediaPageView(asset: asset, containerSize: proxy.size)
+                            .tag(index)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
                 .ignoresSafeArea()
 
-            TabView(
-                selection: Binding(
-                    get: { store.currentIndex },
-                    set: { store.send(.view(.currentIndexChanged($0))) }
-                )
-            ) {
-                ForEach(Array(store.items.enumerated()), id: \.element.id) { index, asset in
-                    MediaPageView(asset: asset)
-                        .tag(index)
-                }
+                topBar
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .ignoresSafeArea()
-
-            topBar
+            .preferredColorScheme(.dark)
         }
-        .preferredColorScheme(.dark)
     }
 
     private var topBar: some View {
@@ -68,11 +71,12 @@ struct MediaDetailView: View {
 
 private struct MediaPageView: View {
     let asset: PhotoAsset
+    let containerSize: CGSize
 
     var body: some View {
         switch asset.mediaType {
         case .image, .unknown:
-            MediaImagePageView(assetID: asset.id)
+            MediaImagePageView(assetID: asset.id, containerSize: containerSize)
         case .video:
             MediaVideoPageView(assetID: asset.id)
         }
@@ -81,46 +85,27 @@ private struct MediaPageView: View {
 
 private struct MediaImagePageView: View {
     let assetID: String
+    let containerSize: CGSize
 
     @State private var image: UIImage?
-    @State private var baseScale: CGFloat = 1
-    @State private var pinchScale: CGFloat = 1
 
     var body: some View {
         ZStack {
             if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .scaleEffect(displayScale)
-                    .gesture(magnificationGesture)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ZoomableImageView(
+                    image: image,
+                    resetID: assetID,
+                    containerSize: containerSize
+                )
+                .ignoresSafeArea()
             } else {
                 ProgressView()
                     .tint(.white)
             }
         }
-        .padding(.horizontal, 12)
         .task(id: assetID) {
-            baseScale = 1
-            pinchScale = 1
             image = await loadFullImage()
         }
-    }
-
-    private var displayScale: CGFloat {
-        min(max(baseScale * pinchScale, 1), 4)
-    }
-
-    private var magnificationGesture: some Gesture {
-        MagnificationGesture()
-            .onChanged { value in
-                pinchScale = value
-            }
-            .onEnded { value in
-                baseScale = min(max(baseScale * value, 1), 4)
-                pinchScale = 1
-            }
     }
 
     private func loadFullImage() async -> UIImage? {
@@ -159,7 +144,8 @@ private struct MediaVideoPageView: View {
     var body: some View {
         ZStack {
             if let player {
-                VideoPlayer(player: player)
+                FillWidthPlayerView(player: player)
+                    .ignoresSafeArea()
                     .onAppear { player.play() }
                     .onDisappear { player.pause() }
             } else if isLoading {
@@ -189,24 +175,152 @@ private struct MediaVideoPageView: View {
         }
     }
 
+    @MainActor
     private func loadPlayer() async -> AVPlayer? {
         let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetID], options: nil)
         guard let asset = fetchResult.firstObject else { return nil }
 
         let options = PHVideoRequestOptions()
-        options.isNetworkAccessAllowed = false
+        options.isNetworkAccessAllowed = true
         options.deliveryMode = .highQualityFormat
 
-        let url = await withCheckedContinuation { continuation in
+        let playerItem = await withCheckedContinuation(isolation: MainActor.shared) { continuation in
             var resumed = false
-            PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, _ in
+            PHImageManager.default().requestPlayerItem(forVideo: asset, options: options) { item, _ in
                 guard !resumed else { return }
                 resumed = true
-                continuation.resume(returning: (avAsset as? AVURLAsset)?.url)
+                continuation.resume(returning: item)
             }
         }
 
-        guard let url else { return nil }
-        return AVPlayer(url: url)
+        guard let playerItem else { return nil }
+        return AVPlayer(playerItem: playerItem)
+    }
+}
+
+private struct FillWidthPlayerView: UIViewControllerRepresentable {
+    let player: AVPlayer
+
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let controller = AVPlayerViewController()
+        controller.player = player
+        controller.videoGravity = .resizeAspectFill
+        controller.view.backgroundColor = .black
+        controller.showsPlaybackControls = true
+        return controller
+    }
+
+    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
+        if controller.player !== player {
+            controller.player = player
+        }
+    }
+}
+
+private struct ZoomableImageView: UIViewRepresentable {
+    let image: UIImage
+    let resetID: String
+    let containerSize: CGSize
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIView(context: Context) -> UIScrollView {
+        let scrollView = UIScrollView()
+        scrollView.delegate = context.coordinator
+        scrollView.maximumZoomScale = 4
+        scrollView.minimumZoomScale = 1
+        scrollView.bouncesZoom = true
+        scrollView.alwaysBounceVertical = false
+        scrollView.alwaysBounceHorizontal = false
+        scrollView.showsVerticalScrollIndicator = false
+        scrollView.showsHorizontalScrollIndicator = false
+        scrollView.backgroundColor = .black
+
+        context.coordinator.configure(scrollView)
+        return scrollView
+    }
+
+    func updateUIView(_ scrollView: UIScrollView, context: Context) {
+        context.coordinator.update(
+            image: image,
+            resetID: resetID,
+            containerSize: containerSize,
+            in: scrollView
+        )
+    }
+
+    final class Coordinator: NSObject, UIScrollViewDelegate {
+        private let imageView = UIImageView()
+        private var currentResetID: String?
+        private var lastContainerSize: CGSize = .zero
+
+        func configure(_ scrollView: UIScrollView) {
+            imageView.contentMode = .scaleToFill
+            scrollView.addSubview(imageView)
+        }
+
+        func update(
+            image: UIImage,
+            resetID: String,
+            containerSize: CGSize,
+            in scrollView: UIScrollView
+        ) {
+            let needsReset = currentResetID != resetID || lastContainerSize != containerSize
+            currentResetID = resetID
+            lastContainerSize = containerSize
+
+            imageView.image = image
+
+            if needsReset {
+                resetZoom(in: scrollView, image: image, containerSize: containerSize)
+            }
+        }
+
+        func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+            imageView
+        }
+
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            centerImage(in: scrollView)
+        }
+
+        private func resetZoom(in scrollView: UIScrollView, image: UIImage, containerSize: CGSize) {
+            let fittingWidth = max(containerSize.width, 1)
+            let scaledHeight = max(image.size.height * (fittingWidth / max(image.size.width, 1)), 1)
+
+            scrollView.minimumZoomScale = 1
+            scrollView.maximumZoomScale = 4
+            scrollView.zoomScale = 1
+
+            imageView.frame = CGRect(
+                origin: .zero,
+                size: CGSize(width: fittingWidth, height: scaledHeight)
+            )
+            scrollView.contentSize = imageView.frame.size
+            centerImage(in: scrollView)
+
+            if scaledHeight > containerSize.height {
+                let centeredYOffset = (scaledHeight - containerSize.height) / 2
+                scrollView.setContentOffset(CGPoint(x: 0, y: centeredYOffset), animated: false)
+            } else {
+                scrollView.setContentOffset(.zero, animated: false)
+            }
+        }
+
+        private func centerImage(in scrollView: UIScrollView) {
+            let boundsSize = scrollView.bounds.size
+            var frameToCenter = imageView.frame
+
+            frameToCenter.origin.x = frameToCenter.width < boundsSize.width
+                ? (boundsSize.width - frameToCenter.width) / 2
+                : 0
+            frameToCenter.origin.y = frameToCenter.height < boundsSize.height
+                ? (boundsSize.height - frameToCenter.height) / 2
+                : 0
+
+            imageView.frame = frameToCenter
+        }
     }
 }
