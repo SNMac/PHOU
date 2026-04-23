@@ -182,6 +182,12 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 이번 세션에서는 상세 정보 버튼이 placeholder/실데이터 두 번 세팅 때문에 modal이 다시 뜨는 문제를 확인했고, `sheet`를 없애고 inline panel을 단일 source of truth로 바꾸는 방향으로 수정함
 - 이번 세션에서는 immersive 탭 전환이 배경색만 바꾸는 수준이 아니라 chrome opacity와 viewport 크기를 함께 전환하도록 수정함
 - 이번 세션에서는 위로 스와이프 시 사진이 위로 lift 되면서 정보 패널이 올라오는 reference UX의 첫 버전을 추가함
+- 이번 세션에서는 사용자 요청에 따라 iOS 26 기본 사진 앱의 Liquid Glass 인상을 맞추기 위해 `MediaDetailView`의 상단/하단 chrome을 overlay에서 `NavigationStack + ToolbarItem/ToolbarItemGroup + ToolbarSpacer` 기반 system toolbar로 다시 전환함
+- 이번 세션에서는 `ToolbarItem(placement: .principal)`로 2줄 title을 옮기고, iOS 26 이상에서 `.sharedBackgroundVisibility(.hidden)`를 적용해 title item이 별도 glass grouping을 가지도록 조정함
+- 이번 세션에서는 하단 액션을 `bottomBar` placement에 share / favorite+info+crop group / delete로 재배치하고, iOS 26에서는 `ToolbarSpacer(.flexible)`로 그룹 간 분리를 시도함
+- 이번 세션에서는 iPhone 13 mini 레이아웃 문제를 줄이기 위해 `MediaDetailLayout`의 chrome reserve를 낮추고, `ZoomableImageView`가 requested viewport 대신 실제 `UIScrollView.bounds`를 기준으로 reset/centering 하도록 보정함
+- 하지만 user report 기준으로 레이아웃 문제는 여전히 해결되지 않았고, runtime 중 `Adding 'UIKitToolbar' as a subview of UIHostingController.view is not supported...` 경고가 새로 관찰됨
+- runtime 중 함께 관찰된 `Error returned from daemon: Error Domain=com.apple.accounts Code=7 "(null)"` 및 `CMPhotoJFIFUtilities err=-17102` 로그는 현재 코드 변경과 직접 연관인지 불명확함
 
 ### 5. 이번 사용자 피드백으로 scope가 다시 바뀜
 
@@ -191,6 +197,8 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 위치는 가능한 경우 `광역/시군구 - 동/가/세부지명` 수준까지 더 자세히 표시
 - 상단 중앙 타이틀은 위치/날짜/시간 2줄 구조로 재설계
 - 상세정보 시트는 날짜+시간, 사진 이름(파일명), 촬영 기기, 위치, 소속 앨범을 표시해야 함
+- iOS 26 기준 네비바와 하단 버튼은 가능하면 system toolbar + Liquid Glass 인상에 더 가깝게 보여야 함
+- 다만 system toolbar 전환이 실제로 안정적인지, 또는 overlay 전략이 더 안전한지는 아직 미정임
 
 ### 6. API / 데이터 가용성 메모
 
@@ -212,6 +220,9 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
   - 최신 수정: modal info sheet 제거, swipe-up inline info panel 추가
   - 최신 수정: immersive 전환 시 상단/하단 chrome fade, status bar hide, safe-area-aware viewport 재계산 추가
   - 최신 수정: info button과 upward swipe가 같은 panel open 경로를 공유하도록 정리
+  - 최신 수정: overlay 상단/하단 chrome 제거 후 `ToolbarItem`/`ToolbarItemGroup` 기반 system toolbar로 재전환
+  - 최신 수정: iOS 26에서 `ToolbarSpacer`와 `.sharedBackgroundVisibility(.hidden)`를 써서 Liquid Glass grouping을 실험
+  - 최신 수정: viewport width를 safe area 기준으로 다시 계산하고, zoom reset은 실제 scroll view bounds를 기준으로 맞추도록 변경
 - `PHOU/Presentation/MediaDetail/MediaDetailSupport.swift`
   - PhotoKit request safety 래퍼 추가
   - detail image / player item / metadata / share item 로딩 공용화
@@ -238,6 +249,16 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - `dev/active/media-detail-viewer/media-detail-viewer-tasks.md`
   - 진행 상태 메모 및 검증 현황 반영
 
+### 8. 현재 blocker / caveat
+
+- 사용자 확인 기준으로 다음 두 증상은 아직 미해결 상태:
+  - normal/immersive 전환 시 사진 여백과 상단 spacing이 기대와 다름
+  - iPhone 13 mini에서 상세 뷰 레이아웃이 더 쉽게 깨짐
+- system toolbar 전환 후 runtime 경고:
+  - `Adding 'UIKitToolbar' as a subview of UIHostingController.view is not supported and may result in a broken view hierarchy.`
+- 위 경고는 `fullScreenCover`로 띄운 SwiftUI 상세 뷰 내부의 toolbar 구성과 연관 가능성이 높아 보이지만, 아직 재현 조건을 분리해 확인하지 못함
+- `com.apple.accounts Code=7` 및 `CMPhotoJFIFUtilities err=-17102` 로그는 시스템/자산 레벨 노이즈일 가능성이 있으나, 아직 근거가 부족하므로 원인 미상으로 보존해야 함
+
 ---
 
 ## 오픈 질문
@@ -245,7 +266,7 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 촬영 기기명을 사진/동영상 모두에서 같은 수준으로 제공할 수 있는지, 아니면 자산 타입별 fallback 정책이 필요한지
 - 상세정보 시트의 소속 앨범을 모든 앨범 제목 리스트로 보여줄지, 사용자에게 의미 있는 대표 앨범만 보여줄지
 - 편집 버튼이 즉시 crop 화면으로 들어갈지, 추후 기능 확장을 고려해 별도 action sheet를 둘지
-- 현재 overlay chrome 구조가 `ToolbarItem`보다 덜 네이티브해 보이는지, 아니면 reference에 더 가까운지
+- 현재 system toolbar 구조가 overlay보다 더 네이티브한 대신, `fullScreenCover` + zoom transition + inline panel 조합에서 hierarchy 경고 없이 유지 가능한지
 - inline 정보 패널 drag가 pager/zoom과 실제 사용에서 충돌하지 않는지
 - 핀치 기반 열 수 변경이 회전/iPad/split view에서도 충분히 자연스러운지
 - 썸네일 preheat(`startCachingImages`)가 실제 체감 성능 개선에 얼마나 기여하는지 profiling이 필요한지
@@ -254,8 +275,9 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 
 ## 다음 즉시 작업
 
-1. 시뮬레이터에서 modal 재프레젠트가 사라졌는지, info 버튼과 upward swipe가 같은 panel을 자연스럽게 여는지 수동 확인
-2. immersive 탭 전환 시 chrome fade, status bar hide, viewport 확대/축소가 reference 체감과 맞는지 확인
-3. 사진/동영상/줌 상태에서 inline 패널 drag가 pager와 충돌하지 않는지 확인
-4. 상세 위치/파일명/기기/앨범 정보가 실제 다양한 자산에서 어떤 품질로 보이는지 샘플 검증
+1. `UIKitToolbar` hierarchy 경고가 어떤 presentation 조합에서 나는지 재현 조건을 좁히기
+2. iPhone 13 mini에서 toolbar 전환 후 상단 spacing / 사진 여백이 실제로 어떻게 보이는지 수동 확인
+3. system toolbar 유지가 어렵다면 overlay chrome 복귀 또는 hybrid 구조를 검토
+4. 사진/동영상/줌 상태에서 inline 패널 drag가 pager와 충돌하지 않는지 확인
+5. 상세 위치/파일명/기기/앨범 정보가 실제 다양한 자산에서 어떤 품질로 보이는지 샘플 검증
 5. 편집 액션 범위를 crop-only로 확정할지 판단하고, 확정 시 UI/저장 경로를 설계

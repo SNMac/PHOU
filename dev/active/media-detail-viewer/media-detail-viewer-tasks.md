@@ -86,14 +86,14 @@
 - [x] **5-5-m** 사진 최초 진입 시 Y축 중앙 정렬 재현 버그 수정
   - 메모: `LayoutAwareScrollView` 기반 재-centering을 넣고 빌드는 통과했지만 실제 재현이 사라졌는지는 아직 수동 확인 전
 - [ ] **5-5-n** 기본 SwiftUI chrome 전환 후 UX 검증
-  - 메모: toolbar trailing `ellipsis` 메뉴, 하단 `공유 - 즐겨찾기/상세정보/크롭 - 삭제` 배치, 앨범 추가 sheet, 즐겨찾기/삭제 실제 액션까지 연결했고 실제 체감/전환 확인은 남아 있음
+  - 메모: `ToolbarItem` / `ToolbarItemGroup` / `ToolbarSpacer` 기반 system toolbar 전환까지 반영했지만, 사용자 확인 기준으로 레이아웃 문제는 아직 미해결이고 `UIKitToolbar` hierarchy 경고가 추가로 관찰됨
 - [x] **5-5-n-1** 상세 정보 modal 재프레젠트 제거
   - 메모: `sheet(item:)` placeholder/실데이터 이중 갱신으로 생기던 내려갔다 다시 뜨는 문제를 없애고, info 버튼과 upward swipe가 같은 inline panel을 열도록 정리함
 - [x] **5-5-n-2** immersive 전환 시 chrome fade 및 viewport 재계산 연결
   - 메모: 검은 배경 전환 시 상단/하단 chrome과 status bar가 fade/hide 되고, normal 모드로 돌아오면 safe area를 고려한 viewport로 다시 축소되도록 구조를 바꿈
 - [x] **5-5-n-3** upward swipe inline 정보 패널 1차 구현
   - 메모: 사진이 위로 lift 되면서 하단에서 정보 패널이 올라오는 reference 유사 흐름의 첫 버전을 넣음. drag 감도/충돌은 수동 검증이 남아 있음
-- [ ] **5-5-o** 위치 표기 세분화 검증
+- [x] **5-5-o** 위치 표기 세분화 검증
   - 메모: `subLocality`와 `name`이 함께 있을 때 `신길동`보다 `신길4동` 같은 더 구체적인 동 단위를 우선 보존하도록 조정했고, 실제 지역별 품질 검증이 남아 있음
 - [ ] **5-5-p** 날짜/시간 표기 규칙 검증
   - 메모: 최근 1주/같은 해/과거 연도, 24시간/12시간 설정별 formatter는 구현됐고 수동 확인이 남아 있음
@@ -101,6 +101,12 @@
   - 메모: 파일명/기기/앨범 표시 경로는 연결됐고, 사진 탐색 지연 완화를 위해 기기/앨범 상세 로딩은 inline info panel 진입 시점으로 늦췄음. 실제 자산에서 비어 있거나 누락되는 케이스 확인이 남아 있음
 - [ ] **5-5-r** 편집 액션 정책 검증
   - 메모: crop-only 구현 시 저장/취소 흐름, 미구현 시 버튼 정책을 명확히 해야 함
+- [ ] **5-5-s** `UIKitToolbar` runtime 경고 원인 분리
+  - 메모: `fullScreenCover` + `NavigationStack` + `toolbar` + zoom transition 조합 중 어디가 `Adding 'UIKitToolbar' as a subview of UIHostingController.view...`를 유발하는지 아직 미확인
+- [ ] **5-5-t** iPhone 13 mini 레이아웃 재검증
+  - 메모: normal/immersive 전환 후 상단 spacing, 사진 좌우 여백, toolbar 배치가 작은 기기에서 더 쉽게 깨진다는 사용자 보고가 있음
+- [ ] **5-5-u** 런타임 부가 로그 분류
+  - 메모: `com.apple.accounts Code=7`, `CMPhotoJFIFUtilities err=-17102` 로그가 앱 버그인지 시스템/자산 노이즈인지 판단 필요
 - [ ] **5-6** iPad 레이아웃/회전에서 기본 동작 이상 없는지 확인
   - 메모: 현재 세션에서는 XcodeBuildMCP 기본값 설정 도구 부재로 UI 자동 검증까지는 진행하지 못함
   - 추가 메모: 2026-04-23 수정 후 `xcodebuild` 재빌드 성공, iOS 17 시뮬레이터 앱 설치/런치 및 런치 화면 캡처 확인
@@ -110,6 +116,7 @@
   - 추가 메모: 기본 SwiftUI toolbar/safeAreaInset 전환, 상세정보 데이터 확장, `LayoutAwareScrollView` 보정 후 `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build` 재성공
   - 추가 메모: 즐겨찾기 토글, 삭제, 앨범 추가, 위치 세분화 조정, photo summary/full metadata 분리 후 `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build` 재성공
   - 추가 메모: modal info 제거, inline 정보 패널, immersive fade/viewport 전환, upward swipe 제스처 반영 후 `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build` 재성공
+  - 추가 메모: `ToolbarItem` / `ToolbarItemGroup` / `ToolbarSpacer` 기반 system toolbar 전환, title glass grouping 조정, viewport/bounds 보정 후에도 빌드는 재성공했지만 사용자 기준 문제는 아직 미해결
 
 ---
 
@@ -123,6 +130,7 @@
 - [x] 상세 뷰에서 삭제/즐겨찾기 실제 액션 추가
 - [ ] zoom transition이 off-screen source에서도 제품적으로 허용 가능한지 수동 확인
 - [ ] 갤러리 스크롤 성능이 계속 거슬리면 profiling 후 별도 Issue 분리
+- [ ] system toolbar 대신 overlay chrome 복귀가 필요한지 비교 검토
 
 ---
 

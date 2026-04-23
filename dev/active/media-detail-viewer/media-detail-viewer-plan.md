@@ -17,6 +17,8 @@
 
 추가 사용자 피드백으로 scope가 다시 조정되었습니다. 상세 뷰는 iPhone 기본 사진 앱에 더 가깝게 다듬어야 하며, 상단/하단 chrome은 fade되는 overlay 성격으로 유지하되 제스처와 safe area 변화에 자연스럽게 반응해야 합니다. 또한 상세 정보는 별도 modal sheet보다 Photos 앱처럼 아래에서 올라오는 inline info panel 구조가 더 맞는 것으로 범위가 재정의되었습니다. 편집 기능은 공개 시스템 사진 편집 UI를 앱 내부에서 직접 띄우는 방향이 아니라, 필요 시 crop-only 커스텀 편집으로 축소하는 쪽으로 재정의합니다.
 
+가장 최근 세션에서는 iOS 26 기본 사진 앱의 Liquid Glass 인상을 맞추기 위해 `ToolbarItem` / `ToolbarItemGroup` 기반 system toolbar 전환을 시도했습니다. 현재 코드는 그 방향으로 바뀌어 있지만, 사용자 보고 기준 레이아웃 문제는 아직 해결되지 않았고, 런타임 중 `UIKitToolbar` hosting hierarchy 경고가 새로 관찰되어 이 방향의 안정성 검증이 추가 범위가 되었습니다.
+
 ---
 
 ## Current State Analysis
@@ -41,7 +43,7 @@
 | 고해상도 원본 로딩 | ✅ 1차 구현 완료 | detail image loader와 현재/인접 페이지 우선 로딩이 반영됨 |
 | 동영상 재생 | ✅ 1차 구현 완료 | `AVPlayerViewController` 기반 재생은 가능하지만 제어 UI는 아직 최소 수준 |
 | 사진 초기 세로 정렬 | ⚠️ 보정 후 재검증 필요 | `LayoutAwareScrollView` 기반 재-centering 경로를 추가했지만 실제 사용자 재현이 사라졌는지는 아직 수동 확인 필요 |
-| 상세 chrome 구성 | ✅ 기본 SwiftUI 전환 반영 | `NavigationStack + toolbar + safeAreaInset` 구조로 전환됨 |
+| 상세 chrome 구성 | ⚠️ 재검토 중 | overlay chrome에서 system `toolbar` 기반으로 다시 전환했지만, 사용자 보고 기준 레이아웃 문제는 여전하고 `UIKitToolbar` 경고가 추가됨 |
 | 위치/날짜 포맷 | ✅ 1차 구현 완료 | 위치 유무에 따른 2줄 타이틀과 최근성/24시간 설정 기반 포맷이 코드에 반영됨 |
 | 상세정보 표시 | ⚠️ 구조 전환 중 | modal sheet 대신 swipe-up inline info panel로 전환됐고, 실제 체감/세부 레이아웃 검증이 남음 |
 | 편집 기능 | ⚠️ 미정 | 현재는 안내 alert만 표시하며, crop-only 편집 범위를 실제로 구현할지 결정 필요 |
@@ -55,7 +57,7 @@
 - 동영상은 `requestPlayerItem(forVideo:)` + `AVPlayerViewController` 기반으로 재생 안정성 보정 완료
 - 활성 페이지가 아닌 동영상은 pause 하도록 로직 추가
 - 썸네일은 `PHCachingImageManager` + request cancel을 유지하면서 화질을 다시 `highQualityFormat` 쪽으로 복구
-- 상단/하단 chrome은 `NavigationStack + toolbar + safeAreaInset` 기반으로 전환됨
+- 상단/하단 chrome은 한 차례 overlay 기반 immersive/fade 구조로 바뀌었다가, 최근에는 `NavigationStack + ToolbarItem/ToolbarItemGroup` 기반 system toolbar로 다시 전환됨
 - 중앙 타이틀은 위치 유무에 따라 `위치 / 날짜+시간` 또는 `날짜 / 시간` 2줄 구조를 사용함
 - 위치 표기는 `administrativeArea/locality/subLocality/thoroughfare/name` 조합 기반의 best-effort 상세 문자열로 확장됨
 - 상세정보는 이제 modal sheet 대신 inline panel 후보 구조로 전환 중이며, 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 같은 데이터 소스로 표시함
@@ -63,6 +65,11 @@
 - 편집 버튼은 현재 "공개 시스템 사진 편집 UI를 직접 열 수 없다"는 안내 alert만 연결되어 있음
 - `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build` 재성공
 - 테스트 타깃은 아직 없어 reducer/unit test는 미구현
+- 사용자 런타임 보고:
+  - `Adding 'UIKitToolbar' as a subview of UIHostingController.view is not supported...` 경고가 상세 뷰 진입 중 관찰됨
+  - `Error returned from daemon: Error Domain=com.apple.accounts Code=7 "(null)"` 로그가 함께 관찰됨
+  - `<<<< CMPhotoJFIFUtilities >>>> signalled err=-17102` 로그가 반복 관찰됨
+- 위 세 로그 중 마지막 두 개는 현재 구현과 직접 연관인지 아직 확인되지 않았고, 첫 번째 `UIKitToolbar` 경고는 최근 toolbar 구조 전환과 연관 가능성이 높아 보이므로 우선 조사 대상임
 
 ---
 
@@ -114,11 +121,11 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - 사진은 고해상도 이미지와 pinch-to-zoom을 지원합니다.
 - 동영상은 `AVPlayer` / `VideoPlayer` 기반 재생을 지원합니다.
 - 좌우 스와이프 paging UX를 구현합니다.
-- 상단 chrome은 기본 SwiftUI navigation bar / toolbar 기반으로 구성하고, 중앙에는 2줄 title 영역을 둡니다.
+- 상단 chrome은 기본 SwiftUI navigation bar / toolbar 기반 구성을 우선 시도하되, `fullScreenCover` + `ToolbarItem` 조합에서 hierarchy 경고나 레이아웃 깨짐이 남으면 overlay 전략으로 되돌리는 것도 허용합니다.
 - 위치가 있으면 상단 줄에 위치, 하단 줄에 날짜+시간을 표시하고, 위치가 없으면 상단 줄에 날짜, 하단 줄에 시간을 표시합니다.
 - 날짜는 현재 시점 기준 최근 1주 이내면 요일, 같은 해면 `M월 d일`, 그보다 과거면 `yyyy년 M월 d일` 규칙을 따릅니다.
 - 시간은 사용자의 24시간 표기 설정을 따라 24시 또는 `오전`/`오후` 12시간 형식으로 표시합니다.
-- 하단 액션은 Photos 앱처럼 떠 있는 overlay 형태를 유지하되, 단일 탭 immersive 전환 시 chrome이 fading되며 함께 숨겨져야 합니다.
+- 하단 액션은 Photos 앱처럼 보이는 system toolbar grouping 또는 overlay 중 더 안정적인 방향을 택합니다. 현재는 `ToolbarItemGroup + ToolbarSpacer`로 Liquid Glass 레이아웃을 시도 중이며, 단일 탭 immersive 전환 시 chrome이 함께 사라져야 합니다.
 - 단일 탭으로 배경을 `systemBackground` / black 사이에서 토글하고, 이때 사진 viewport도 safe area 고려/무시 상태에 맞춰 함께 확장 또는 축소되어야 합니다.
 - 사진은 더블 탭으로 확대/축소를 지원합니다.
 - 사진은 최초 진입 직후에도 별도 상호작용 없이 Y축 중앙 정렬되어야 합니다.
@@ -149,7 +156,8 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - 시뮬레이터에서 실제 진입/스와이프/동영상 재생 수동 확인
 - 필요 시 현재 페이지 표시와 제스처 충돌 UX 미세 조정
 - 사진 세로 중앙 정렬이 최초 진입 시에도 완전히 해결됐는지 수동 검증
-- 기본 SwiftUI chrome 전환 후 navigation/title/action 배치가 iPhone 사진 앱 흐름과 어긋나지 않는지 확인
+- system toolbar 전환 후 navigation/title/action 배치가 iPhone 사진 앱 흐름과 어긋나지 않는지 확인
+- `UIKitToolbar` hierarchy 경고가 재현되는지, 특정 presentation 조합(`fullScreenCover`, zoom transition, nested NavigationStack)과 연결되는지 확인
 - 위치/날짜/시간 포맷이 한국어 로케일과 사용자의 24시간 설정에서 기대대로 보이는지 검증
 - 상세정보 시트의 파일명/기기/앨범 정보가 실제 자산에서 일관되게 채워지는지 검증
 - crop-only 편집이 도입되면 저장/취소/원본 보존 정책을 추가 검증
@@ -174,10 +182,11 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - iOS 18+에서는 `matchedTransitionSource` + zoom transition을 통해 셀에서 상세 뷰로 이어지는 확대 전환을 우선 적용합니다.
 - 동영상 재생 UI는 현재 브랜치에서 시스템 playback controls를 숨겨 기존 chrome 충돌만 해소하고, 커스텀 플레이어 설계/구현은 별도 후속 작업으로 분리합니다.
 
-### 3. chrome은 기본 SwiftUI 요소 우선
+### 3. chrome은 system toolbar 우선 검증
 
-- 상단/하단 액션 영역은 시스템스러운 시각 언어를 유지하되, 실제 Photos 레퍼런스처럼 overlay chrome과 inline 정보 패널을 함께 다루기 위해 toolbar만으로 고정하지 않습니다.
-- `ToolbarItem`은 네이티브 감은 있지만, 현재 요구사항의 가운데 묶음 하단 액션과 패널 위 부유 배치를 재현하기 어려워 overlay 기반을 우선 유지합니다.
+- iOS 26 기본 사진 앱처럼 Liquid Glass가 자연스럽게 붙는지 보기 위해 `ToolbarItem`, `ToolbarItemGroup`, `ToolbarSpacer` 기반 system toolbar를 현재 우선 시도합니다.
+- 다만 `fullScreenCover` 기반 상세 뷰와 결합했을 때 `UIKitToolbar` hierarchy 경고가 관찰되어, 이 구성이 실제로 안전한지 아직 확정되지 않았습니다.
+- 레퍼런스 재현도와 안정성 중 어느 쪽이 더 우선인지에 따라 overlay chrome으로 되돌릴 가능성도 열어둡니다.
 
 ### 4. 제목 포맷은 Photos 앱 유사 정책
 
@@ -218,6 +227,7 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 | 핀치 기반 열 수 변경 시 썸네일 재요청이 빈번해질 수 있음 | 중간 | 실제 셀 크기 기반 요청으로 정확도를 높이고, preheat는 후속 profiling 범위로 유지 |
 | PhotoKit request cancel 시 continuation leak으로 런타임 경고가 날 수 있음 | 높음 | 취소/에러 경로에서도 `nil`로 반드시 resume 되는 래퍼 사용 |
 | 전체 페이지가 동시에 고비용 로딩을 시작하면 초기 진입/스와이프가 무거워짐 | 높음 | 현재 페이지와 인접 페이지만 우선 로드하고 캐시 재사용 |
+| `ToolbarItem` 기반 상세 chrome이 `fullScreenCover`/hosting hierarchy와 충돌할 수 있음 | 높음 | `UIKitToolbar` 경고 재현 조건을 좁히고, 필요 시 overlay chrome 또는 presentation 구조 재조정 |
 | 위치 문자열 reverse geocoding이 느릴 수 있음 | 중간 | 좌표 fallback과 캐시를 두고, top bar는 placeholder에서 점진 업데이트 |
 | 지오코딩 결과가 지역마다 다른 깊이로 내려와 세부 위치 문자열 품질이 들쭉날쭉할 수 있음 | 높음 | `administrativeArea/locality/subLocality/name/thoroughfare` 조합 규칙과 중복 제거 규칙을 명시 |
 | 촬영 기기 메타데이터가 편집본, 다운로드본, 일부 비디오에서 비어 있을 수 있음 | 중간 | 메타데이터 추출 실패 시 "정보 없음" fallback을 허용하고 UX에 반영 |

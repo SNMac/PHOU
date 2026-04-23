@@ -41,10 +41,6 @@ struct MediaDetailView: View {
         usesImmersiveBackground ? .black : Color(uiColor: .systemBackground)
     }
 
-    private var chromeOpacity: Double {
-        usesImmersiveBackground ? 0 : 1
-    }
-
     private var displayedDetails: MediaAssetDetails? {
         currentDetails ?? currentAsset.map(MediaAssetDetails.placeholder)
     }
@@ -112,7 +108,7 @@ struct MediaDetailView: View {
 
     @ViewBuilder
     private var rootContent: some View {
-        let navigationContent = NavigationStack {
+        let content = NavigationStack {
             GeometryReader { proxy in
                 let layout = MediaDetailLayout(
                     containerSize: proxy.size,
@@ -125,22 +121,25 @@ struct MediaDetailView: View {
                     backgroundColor
                         .ignoresSafeArea()
 
-                    content(layout: layout)
+                    self.content(layout: layout)
                         .offset(y: showsDetailsPanel ? -layout.mediaLift : 0)
                         .animation(chromeAnimation, value: showsDetailsPanel)
                         .animation(chromeAnimation, value: usesImmersiveBackground)
 
                     detailsPanel(layout: layout)
-
-                    topChrome(safeAreaInsets: proxy.safeAreaInsets)
-                    bottomChrome(safeAreaInsets: proxy.safeAreaInsets)
                 }
                 .contentShape(Rectangle())
                 .simultaneousGesture(detailsRevealGesture)
                 .animation(chromeAnimation, value: usesImmersiveBackground)
                 .animation(chromeAnimation, value: showsDetailsPanel)
-                .navigationBarHidden(true)
                 .statusBarHidden(usesImmersiveBackground)
+                .toolbar(usesImmersiveBackground ? .hidden : .visible, for: .navigationBar, .bottomBar)
+                .toolbarBackgroundVisibility(.automatic, for: .navigationBar, .bottomBar)
+                .toolbar {
+                    mediaDetailToolbar
+                }
+                .toolbarTitleDisplayMode(.inline)
+                .navigationBarBackButtonHidden()
                 .onChange(of: currentAssetID) { _, _ in
                     showsDetailsPanel = false
                 }
@@ -157,10 +156,10 @@ struct MediaDetailView: View {
         }
 
         if let transitionNamespace {
-            navigationContent
+            content
                 .navigationTransition(.zoom(sourceID: currentAssetID, in: transitionNamespace))
         } else {
-            navigationContent
+            content
         }
     }
 
@@ -181,72 +180,14 @@ struct MediaDetailView: View {
                     backgroundColor: usesImmersiveBackground ? .black : .systemBackground,
                     onSingleTap: toggleBackground
                 )
-                .frame(width: layout.viewportSize.width, height: layout.viewportSize.height)
+                .frame(maxWidth: .infinity)
+                .frame(height: layout.viewportSize.height)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .tag(index)
             }
         }
         .tabViewStyle(.page(indexDisplayMode: .never))
         .ignoresSafeArea(usesImmersiveBackground ? .all : [])
-    }
-
-    private func bottomChrome(safeAreaInsets: EdgeInsets) -> some View {
-        HStack(spacing: 20) {
-            chromeCircleButton(
-                systemImage: isPreparingShare ? "ellipsis.circle" : "square.and.arrow.up",
-                tint: .accentColor,
-                isDisabled: isPreparingShare || currentAsset == nil
-            ) {
-                guard let asset = currentAsset else { return }
-                Task {
-                    await prepareShare(for: asset)
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            HStack(spacing: 4) {
-                chromeCapsuleButton(
-                    systemImage: (currentAsset?.isFavorite ?? false) ? "heart.fill" : "heart",
-                    tint: (currentAsset?.isFavorite ?? false) ? .pink : .accentColor
-                ) {
-                    store.send(.view(.favoriteTapped))
-                }
-
-                chromeCapsuleButton(
-                    systemImage: "info.circle",
-                    tint: .accentColor
-                ) {
-                    presentInfo()
-                }
-
-                chromeCapsuleButton(
-                    systemImage: "crop",
-                    tint: .accentColor
-                ) {
-                    showsCropUnavailableAlert = true
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(.thinMaterial)
-            .clipShape(Capsule())
-
-            Spacer(minLength: 0)
-
-            chromeCircleButton(
-                systemImage: "trash",
-                tint: .red,
-                isDisabled: currentAsset == nil
-            ) {
-                showsDeleteConfirmation = true
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, max(safeAreaInsets.bottom, 12) + 10)
-        .opacity(chromeOpacity)
-        .allowsHitTesting(!usesImmersiveBackground)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 
     private func toggleBackground() {
@@ -310,61 +251,67 @@ struct MediaDetailView: View {
         )
     }
 
-    private func topChrome(safeAreaInsets: EdgeInsets) -> some View {
-        HStack(spacing: 14) {
-            chromeCircleButton(
-                systemImage: "chevron.backward",
-                tint: .primary,
-                isDisabled: false
-            ) {
+    @ToolbarContentBuilder
+    private var mediaDetailToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button {
                 store.send(.view(.dismissTapped))
-            }
-
-            Spacer(minLength: 0)
-
-            titleCapsule
-
-            Spacer(minLength: 0)
-
-            Menu {
-                Button {
-                    store.send(.view(.addToAlbumTapped))
-                } label: {
-                    Label("앨범에 추가", systemImage: "text.badge.plus")
-                }
-
-                Button {
-                    presentUnavailableAdjustment(
-                        "날짜 및 시간 조정은 아직 준비 중이에요."
-                    )
-                } label: {
-                    Label("날짜 및 시간 조정", systemImage: "calendar.badge.clock")
-                }
-
-                Button {
-                    presentUnavailableAdjustment(
-                        "위치 조정은 Apple 지도 연동 설계와 같이 다음 단계에서 다루겠습니다."
-                    )
-                } label: {
-                    Label("위치 조정", systemImage: "mappin.and.ellipse")
-                }
             } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .frame(width: 58, height: 58)
-                    .background(.thinMaterial)
-                    .clipShape(Circle())
+                Image(systemName: "chevron.backward")
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, safeAreaInsets.top + 10)
-        .opacity(chromeOpacity)
-        .allowsHitTesting(!usesImmersiveBackground)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+        if #available(iOS 26, *) {
+            ToolbarItem(placement: .principal) {
+                titleToolbarLabel
+            }
+            .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .principal) {
+                titleToolbarLabel
+            }
+        }
+
+        ToolbarItem(placement: .topBarTrailing) {
+            topTrailingMenu
+        }
+
+        if #available(iOS 26, *) {
+            ToolbarItem(placement: .bottomBar) {
+                shareToolbarButton
+            }
+
+            ToolbarSpacer(.flexible, placement: .bottomBar)
+
+            ToolbarItemGroup(placement: .bottomBar) {
+                favoriteToolbarButton
+                infoToolbarButton
+                cropToolbarButton
+            }
+
+            ToolbarSpacer(.flexible, placement: .bottomBar)
+
+            ToolbarItem(placement: .bottomBar) {
+                deleteToolbarButton
+            }
+        } else {
+            ToolbarItem(placement: .bottomBar) {
+                shareToolbarButton
+            }
+
+            ToolbarItemGroup(placement: .bottomBar) {
+                favoriteToolbarButton
+                infoToolbarButton
+                cropToolbarButton
+            }
+
+            ToolbarItem(placement: .bottomBar) {
+                deleteToolbarButton
+            }
+        }
     }
 
-    private var titleCapsule: some View {
+    private var titleToolbarLabel: some View {
         VStack(spacing: 2) {
             Text(displayedDetails?.titlePrimaryText ?? "사진")
                 .font(.subheadline.weight(.semibold))
@@ -375,11 +322,88 @@ struct MediaDetailView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(.thinMaterial)
-        .clipShape(Capsule())
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .frame(maxWidth: 220)
         .multilineTextAlignment(.center)
+    }
+
+    private var topTrailingMenu: some View {
+        Menu {
+            Button {
+                store.send(.view(.addToAlbumTapped))
+            } label: {
+                Label("앨범에 추가", systemImage: "text.badge.plus")
+            }
+
+            Button {
+                presentUnavailableAdjustment(
+                    "날짜 및 시간 조정은 아직 준비 중이에요."
+                )
+            } label: {
+                Label("날짜 및 시간 조정", systemImage: "calendar.badge.clock")
+            }
+
+            Button {
+                presentUnavailableAdjustment(
+                    "위치 조정은 Apple 지도 연동 설계와 같이 다음 단계에서 다루겠습니다."
+                )
+            } label: {
+                Label("위치 조정", systemImage: "mappin.and.ellipse")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+        }
+    }
+
+    private var shareToolbarButton: some View {
+        Button {
+            guard let asset = currentAsset else { return }
+            Task {
+                await prepareShare(for: asset)
+            }
+        } label: {
+            if isPreparingShare {
+                ProgressView()
+            } else {
+                Image(systemName: "square.and.arrow.up")
+            }
+        }
+        .disabled(isPreparingShare || currentAsset == nil)
+    }
+
+    private var favoriteToolbarButton: some View {
+        Button {
+            store.send(.view(.favoriteTapped))
+        } label: {
+            Image(systemName: (currentAsset?.isFavorite ?? false) ? "heart.fill" : "heart")
+                .foregroundStyle((currentAsset?.isFavorite ?? false) ? .pink : .primary)
+        }
+    }
+
+    private var infoToolbarButton: some View {
+        Button {
+            presentInfo()
+        } label: {
+            Image(systemName: "info.circle")
+        }
+    }
+
+    private var cropToolbarButton: some View {
+        Button {
+            showsCropUnavailableAlert = true
+        } label: {
+            Image(systemName: "crop")
+        }
+    }
+
+    private var deleteToolbarButton: some View {
+        Button(role: .destructive) {
+            showsDeleteConfirmation = true
+        } label: {
+            Image(systemName: "trash")
+        }
+        .disabled(currentAsset == nil)
     }
 
     @ViewBuilder
@@ -463,37 +487,6 @@ struct MediaDetailView: View {
         "\(currentAssetID)-\(showsDetailsPanel)"
     }
 
-    private func chromeCircleButton(
-        systemImage: String,
-        tint: Color,
-        isDisabled: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 22, weight: .regular))
-                .foregroundStyle(tint)
-                .frame(width: 58, height: 58)
-                .background(.thinMaterial)
-                .clipShape(Circle())
-        }
-        .disabled(isDisabled)
-    }
-
-    private func chromeCapsuleButton(
-        systemImage: String,
-        tint: Color,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.system(size: 22, weight: .regular))
-                .foregroundStyle(tint)
-                .frame(width: 54, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
 }
 
 private struct MediaPageView: View {
@@ -697,7 +690,6 @@ private struct ZoomableImageView: UIViewRepresentable {
     }
 
     func updateUIView(_ scrollView: LayoutAwareScrollView, context: Context) {
-        scrollView.frame = CGRect(origin: .zero, size: containerSize)
         context.coordinator.update(
             image: image,
             resetID: resetID,
@@ -735,19 +727,24 @@ private struct ZoomableImageView: UIViewRepresentable {
             onSingleTap: @escaping () -> Void,
             in scrollView: LayoutAwareScrollView
         ) {
-            let needsReset = currentResetID != resetID || lastContainerSize != containerSize
+            scrollView.layoutIfNeeded()
+            let effectiveContainerSize = resolvedContainerSize(
+                requestedSize: containerSize,
+                actualSize: scrollView.bounds.size
+            )
+            let needsReset = currentResetID != resetID || lastContainerSize != effectiveContainerSize
             currentResetID = resetID
-            lastContainerSize = containerSize
+            lastContainerSize = effectiveContainerSize
             self.onSingleTap = onSingleTap
 
             imageView.image = image
             scrollView.backgroundColor = backgroundColor
             scrollView.onLayout = { [weak self] updatedScrollView in
-                self?.centerImage(in: updatedScrollView)
+                self?.handleLayout(of: updatedScrollView)
             }
 
             if needsReset {
-                resetZoom(in: scrollView, image: image, containerSize: containerSize)
+                resetZoom(in: scrollView, image: image, containerSize: effectiveContainerSize)
             }
         }
 
@@ -782,6 +779,36 @@ private struct ZoomableImageView: UIViewRepresentable {
             scrollView.contentOffset = .zero
             scrollView.layoutIfNeeded()
             centerImage(in: scrollView)
+        }
+
+        private func handleLayout(of scrollView: UIScrollView) {
+            let effectiveContainerSize = resolvedContainerSize(
+                requestedSize: lastContainerSize,
+                actualSize: scrollView.bounds.size
+            )
+
+            guard effectiveContainerSize != lastContainerSize else {
+                centerImage(in: scrollView)
+                return
+            }
+
+            lastContainerSize = effectiveContainerSize
+
+            guard
+                scrollView.zoomScale <= scrollView.minimumZoomScale + 0.001,
+                let image = imageView.image
+            else {
+                centerImage(in: scrollView)
+                return
+            }
+
+            resetZoom(in: scrollView, image: image, containerSize: effectiveContainerSize)
+        }
+
+        private func resolvedContainerSize(requestedSize: CGSize, actualSize: CGSize) -> CGSize {
+            let width = actualSize.width > 0 ? actualSize.width : requestedSize.width
+            let height = actualSize.height > 0 ? actualSize.height : requestedSize.height
+            return CGSize(width: max(width, 1), height: max(height, 1))
         }
 
         private func centerImage(in scrollView: UIScrollView) {
@@ -913,8 +940,8 @@ private struct MediaDetailLayout {
     let usesImmersiveBackground: Bool
     let showsDetailsPanel: Bool
 
-    private let topChromeReserve: CGFloat = 108
-    private let bottomChromeReserve: CGFloat = 134
+    private let topChromeReserve: CGFloat = 20
+    private let bottomChromeReserve: CGFloat = 28
 
     var viewportSize: CGSize {
         guard !usesImmersiveBackground else { return containerSize }
@@ -927,7 +954,8 @@ private struct MediaDetailLayout {
             + CGFloat(panelAdjustment)
         let availableHeight = containerSize.height - reservedHeight
         let height = max(availableHeight, 1)
-        return CGSize(width: containerSize.width, height: height)
+        let width = max(containerSize.width - safeAreaInsets.leading - safeAreaInsets.trailing, 1)
+        return CGSize(width: width, height: height)
     }
 
     var panelHeight: CGFloat {
