@@ -63,6 +63,18 @@ let result = PHAsset.fetchAssets(with: .image, options: options)
 
 고해상도 원본 이미지 로딩 구현 시 같은 패턴을 재사용해야 Swift 6 / PhotoKit 콜백 다중 호출 문제를 안전하게 피할 수 있습니다.
 
+### 6. 구현 반영 후 현재 상태
+
+- `PHOU/Presentation/MediaDetail/MediaDetailFeature.swift` 신규 생성
+- `PHOU/Presentation/MediaDetail/MediaDetailView.swift` 신규 생성
+- `GalleryFeature`에 `@Presents var mediaDetail` 및 `mediaTapped` 액션 추가
+- `AlbumPhotoGridFeature`에 같은 presentation 연결 추가
+- `GalleryView`, `AlbumPhotoGridView`는 셀 탭 시 동일 뷰어를 띄움
+- 그리드 셀의 비디오에는 우하단 `video.fill` 배지 표시
+- `PhotoLibraryClient.fetchMedia()` 추가로 갤러리 전체가 mixed media fetch를 사용
+
+즉, 현재 구현은 "재사용 가능한 사진/동영상 통합 뷰어"의 첫 버전까지는 도달해 있습니다.
+
 ---
 
 ## 아키텍처 메모
@@ -131,6 +143,13 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 재생 속도, 음소거, 스크러빙 고급 UX
 - 비디오 길이 오버레이/배지
 
+현재 구현 메모:
+
+- `MediaDetailView`는 `TabView` paging 기반
+- 사진은 local view state로 pinch scale을 관리
+- 동영상은 `PHImageManager.requestAVAsset` 결과에서 `AVURLAsset.url`만 추출해 `AVPlayer` 생성
+- `AVAsset` 자체를 continuation으로 넘기면 Swift 6 동시성 검사에 걸리므로 URL 추출 방식 유지
+
 ---
 
 ## 오픈 질문
@@ -143,7 +162,7 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 
 ## 다음 즉시 작업
 
-1. `GalleryFeature`의 fetch API를 mixed media 목표에 맞게 바꿀지 결정
-2. `MediaDetailFeature.State` 입력 계약 확정
-3. presentation 방식(`@Presents` + full-screen / push) 결정
-4. 신규 `Presentation/MediaDetail` 파일 생성 후 최소 동작 뷰어부터 연결
+1. 시뮬레이터에서 갤러리/앨범 상세 진입 및 동영상 재생 수동 검증
+2. 필요 시 paging과 pinch 제스처 충돌 UX 보정
+3. 테스트 타깃 추가 여부 결정
+4. 완료 후 tasks 문서와 close-out 정리

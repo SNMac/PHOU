@@ -35,6 +35,16 @@
 | 고해상도 원본 로딩 | ❌ 미구현 | 썸네일만 있으므로 뷰어 품질/줌 품질 부족 |
 | 동영상 재생 | ❌ 미구현 | `AVPlayer` 기반 재생/정지/라이프사이클 처리 필요 |
 
+### 현재 구현 반영 상태
+
+- `MediaDetailFeature` / `MediaDetailView` 초안 구현 완료
+- `GalleryFeature`는 `fetchMedia()` 기반 mixed media fetch로 전환 완료
+- `GalleryView`, `AlbumPhotoGridView`에서 동일한 full-screen 미디어 뷰어 연결 완료
+- 사진 pinch-to-zoom 1차 구현 완료
+- 동영상 `AVPlayer` 재생 1차 구현 완료
+- 빌드 검증 완료
+- 테스트 타깃은 아직 없어 reducer/unit test는 미구현
+
 ---
 
 ## Proposed Future State
@@ -96,6 +106,12 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 
 - 빌드/시뮬레이터 기준으로 사진 확대, 동영상 재생, paging, dismiss를 확인합니다.
 - mixed media UX에서 남는 후속 항목(비디오 배지, 자동 재생 정책, iPad 레이아웃)을 별도 이슈로 분리할지 결정합니다.
+
+### 현재 남은 후속 작업
+
+- 시뮬레이터에서 실제 진입/스와이프/동영상 재생 수동 확인
+- 필요 시 현재 페이지 표시와 제스처 충돌 UX 미세 조정
+- 테스트 타깃 도입 여부 판단
 
 ---
 
