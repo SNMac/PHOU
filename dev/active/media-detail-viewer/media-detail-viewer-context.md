@@ -75,14 +75,15 @@
 - 동영상은 현재 브랜치에서 시스템 playback controls를 숨겨 상세 뷰 chrome과 겹치지 않게만 정리함
 - 런타임 경고 `SWIFT TASK CONTINUATION MISUSE: loadThumbnail() leaked its continuation` 의 직접 원인은 취소된 PhotoKit request가 callback에서 return만 하고 continuation을 끝내지 않던 경로로 확인됨
 - 상세 뷰 초기 진입/페이지 전환 지연의 주요 원인은 `TabView` 안 모든 페이지가 동시에 무거운 로딩을 시작하던 구조로 판단하고, 현재/인접 페이지 우선 로딩 + 캐시 재사용으로 방향을 바꿈
-- 상세 뷰 chrome은 상단(뒤로가기, 날짜/위치, 즐겨찾기 상태) / 하단(공유, 상세정보, 편집 안내) 구조로 확장됨
-- 현재 상단/하단 chrome은 capsule/circle 배경의 커스텀 SwiftUI UI이며, 사용자 요청은 이를 기본 SwiftUI 요소 기반으로 단순화하는 것임
-- 상단 중앙 타이틀은 현재 날짜 1줄 + 위치 1줄 구조인데, 요청사항은 위치 유무에 따라 위치/날짜/시간 2줄 위계를 바꾸는 것임
-- 위치 문자열은 현재 `locality`, `subLocality`, `name`, `administrativeArea` 중 첫 non-empty 값 하나만 사용해 `수원시`, `서울특별시` 같은 얕은 정보만 나올 수 있음
-- 상세정보 시트는 현재 날짜, 위치, 종류, 크기, 즐겨찾기만 보여주며 파일명, 촬영 기기, 소속 앨범을 제공하지 않음
+- 상세 뷰 chrome은 상단 toolbar / 하단 `safeAreaInset` 액션 바 구조로 바뀌었고, 기존 커스텀 capsule/circle UI는 제거됨
+- 상단 중앙 타이틀은 위치 유무에 따라 `위치 / 날짜+시간` 또는 `날짜 / 시간` 2줄 구조를 사용함
+- 위치 문자열은 `administrativeArea/locality/subLocality/thoroughfare/name` 조합 기반으로 확장되어 `수원시 - 매산로3가` 같은 표기를 시도함
+- 상세정보 시트는 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 표시하도록 확장됨
+- 파일명은 `PHAssetResource.originalFilename`, 소속 앨범은 `PHAssetCollection.fetchAssetCollectionsContaining`, 촬영 기기는 사진 자산의 TIFF metadata 추출을 사용함
 - 편집 버튼은 현재 alert만 띄우고 있으며 crop 또는 다른 실제 편집 기능은 없음
 - 배경은 기본 `systemBackground`이고 단일 탭으로 black immersive background를 토글 가능
 - 사진은 `UIScrollView` 레벨의 double-tap zoom을 추가
+- `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build`는 이 상태로 재성공함
 
 즉, 현재 구현은 "재사용 가능한 사진/동영상 통합 뷰어"의 첫 버전까지는 도달해 있습니다.
 
@@ -175,6 +176,9 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 상세 뷰는 현재/인접 사진 페이지만 우선 로드하고, 비디오는 active page에서만 플레이어를 준비하도록 바꿔 initial presentation/swipe 비용을 낮춤
 - 초기 사진 Y축 정렬 문제는 `UIScrollView.contentInsetAdjustmentBehavior = .never`, layout 후 centering, background-aware zoom view 갱신으로 한 차례 보정했지만 user report 기준 최초 진입 재현이 남아 있음
 - 공유는 `UIActivityViewController` sheet로 연결했고, 편집 버튼은 공개 시스템 사진 편집 API 부재를 안내하는 alert로 처리
+- 이번 세션에서는 `LayoutAwareScrollView`를 추가해 layout 시점마다 centering을 다시 적용하도록 보정함
+- 이번 세션에서는 뷰어 루트에 `NavigationStack`을 두고 toolbar / bottom action bar를 기본 SwiftUI 구성으로 전환함
+- 이번 세션에서는 `MediaDetailAssetLoader.details(for:)`가 제목용 날짜/시간, 상세 위치, 파일명, 촬영 기기, 앨범 이름을 함께 계산하도록 확장됨
 
 ### 5. 이번 사용자 피드백으로 scope가 다시 바뀜
 
@@ -190,25 +194,23 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 확인됨: Apple Developer Documentation 기준 `PHContentEditingController`는 Photos 앱이 호스팅하는 photo editing extension UI용 프로토콜임. 즉, 우리 앱 내부에서 시스템 사진 편집 화면을 그대로 여는 해법으로 보면 안 됨.
 - 확인됨: 파일명은 `PHAssetResource.assetResources(for:)`의 `originalFilename`으로 가져올 수 있음.
 - 확인됨: 소속 앨범은 `PHAssetCollection.fetchAssetCollectionsContaining(_:with:options:)` 또는 album fetch 결과 비교로 조회 가능한 방향이 있음.
-- 추론: 촬영 기기 표시는 원본 이미지/비디오 메타데이터(EXIF/TIFF/QuickTime metadata) 추출이 필요할 가능성이 높고, 일부 자산에서는 값이 없을 수 있음.
+- 확인됨: 현재 구현은 사진 자산에 대해 `requestImageDataAndOrientation` + `CGImageSourceCopyPropertiesAtIndex` + TIFF metadata(`Make`/`Model`)로 촬영 기기를 추출함.
+- 추론: 비디오 촬영 기기명까지 안정적으로 맞추려면 QuickTime metadata 경로를 별도로 추가 검토해야 함.
 - caveat: 사용자가 첨부한 HEIC 레퍼런스 이미지는 이 환경에서 직접 렌더링하지 못해, 요청한 정보 밀도는 텍스트 설명 기준으로만 반영함.
 
 ### 7. 이번 세션에서 실제로 수정된 파일
 
 - `PHOU/Presentation/MediaDetail/MediaDetailView.swift`
-  - 사진 initial fit 계산을 aspect-fit 기준으로 보정했지만 최초 진입 Y축 중앙 정렬 이슈는 아직 추가 수정 필요
-  - `UIScrollView` 기반 zoom/pan 도입
-  - inactive video pause 로직 추가
-  - 플레이어 로딩 경로를 `requestPlayerItem(forVideo:)`로 교체
-  - iOS 18 zoom transition 적용
-  - 시스템 playback controls 비활성화
-  - 단일 탭 배경 토글, double-tap zoom, 상단/하단 chrome, share/info/edit UI 추가
-  - 현재/인접 페이지 우선 로딩 반영
+  - `NavigationStack + toolbar + safeAreaInset` 기반 기본 SwiftUI chrome으로 전환
+  - 상단 중앙 타이틀을 위치/날짜/시간 2줄 구조로 전환
+  - `LayoutAwareScrollView`를 추가해 layout 시점마다 이미지 centering 재적용
+  - 단일 탭 배경 토글, double-tap zoom, share/info/edit UI 유지
+  - 현재/인접 페이지 우선 로딩 유지
 - `PHOU/Presentation/MediaDetail/MediaDetailSupport.swift`
   - PhotoKit request safety 래퍼 추가
   - detail image / player item / metadata / share item 로딩 공용화
   - location reverse geocoding + fallback 처리
-  - 다음 수정에서는 파일명/앨범/기기 메타데이터와 Photos-style 날짜/시간 formatter 확장이 들어갈 가능성이 높음
+  - 파일명, 앨범, 촬영 기기, 제목용 날짜/시간 formatter를 포함한 상세 메타데이터 계산 추가
 - `PHOU/Presentation/Components/PhotoThumbnailView.swift`
   - caching/cancel 유지
   - 썸네일 화질 복구
@@ -238,6 +240,7 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 상세정보 시트의 소속 앨범을 모든 앨범 제목 리스트로 보여줄지, 사용자에게 의미 있는 대표 앨범만 보여줄지
 - 편집 버튼이 즉시 crop 화면으로 들어갈지, 추후 기능 확장을 고려해 별도 action sheet를 둘지
 - 상단 우측의 즐겨찾기 상태를 계속 read-only로 둘지, 실제 toggle 액션까지 연결할지
+- 현재 `NavigationStack` 추가가 full-screen presentation / zoom transition / dismiss 체감에 미세한 차이를 만들지
 - 핀치 기반 열 수 변경이 회전/iPad/split view에서도 충분히 자연스러운지
 - 썸네일 preheat(`startCachingImages`)가 실제 체감 성능 개선에 얼마나 기여하는지 profiling이 필요한지
 
@@ -245,8 +248,8 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 
 ## 다음 즉시 작업
 
-1. `ZoomableImageView`의 초기 layout/centering 순서를 다시 점검해 최초 진입 Y축 중앙 정렬 버그를 해결
-2. `MediaDetailView`의 커스텀 top/bottom bar를 기본 SwiftUI toolbar / action 구성으로 전환
-3. `MediaDetailSupport.swift`에 위치/날짜/시간 formatter와 상세 정보 데이터 소스를 확장
-4. 파일명, 앨범 membership, 촬영 기기 메타데이터의 실제 가용성을 코드로 확인하고 info sheet에 연결
-5. 편집 액션 범위를 crop-only로 확정할지 판단하고, 확정 시 UI/저장 경로를 설계
+1. 시뮬레이터에서 최초 진입 Y축 중앙 정렬이 실제로 해결됐는지 재현 케이스로 수동 확인
+2. 기본 SwiftUI toolbar/safeAreaInset 구성과 zoom transition, dismiss 체감을 수동 확인
+3. 상세 위치/파일명/기기/앨범 정보가 실제 다양한 자산에서 어떤 품질로 보이는지 샘플 검증
+4. 편집 액션 범위를 crop-only로 확정할지 판단하고, 확정 시 UI/저장 경로를 설계
+5. 필요 시 비디오 촬영 기기 metadata 추출 경로를 별도 검토

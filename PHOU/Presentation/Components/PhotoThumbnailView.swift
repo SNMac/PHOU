@@ -60,21 +60,46 @@ struct PhotoThumbnailView: View {
         options.isNetworkAccessAllowed = false
         options.isSynchronous = false
 
-        return await withCheckedContinuation { continuation in
-            var resumed = false
-            requestID = Self.imageManager.requestImage(
-                for: asset,
-                targetSize: requestSize,
-                contentMode: .aspectFill,
-                options: options
-            ) { result, info in
-                let isCancelled = (info?[PHImageCancelledKey] as? Bool) ?? false
-                guard !isCancelled else { return }
-                guard !resumed else { return }
-                resumed = true
-                requestID = nil
-                continuation.resume(returning: result)
+        let box = ThumbnailContinuationBox()
+        let requestIDBox = ThumbnailRequestIDBox()
+
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                box.set(continuation)
+                let requestID = Self.imageManager.requestImage(
+                    for: asset,
+                    targetSize: requestSize,
+                    contentMode: .aspectFill,
+                    options: options
+                ) { result, info in
+                    let isCancelled = (info?[PHImageCancelledKey] as? Bool) ?? false
+                    let isError = info?[PHImageErrorKey] != nil
+                    if isCancelled || isError {
+                        self.requestID = nil
+                        box.resume(nil)
+                        return
+                    }
+
+                    let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
+                    if let result, !isDegraded {
+                        self.requestID = nil
+                        box.resume(result)
+                    }
+                }
+                requestIDBox.set(requestID)
+                self.requestID = requestID
             }
+        } onCancel: {
+            let requestID = requestIDBox.value
+            if requestID != PHInvalidImageRequestID {
+                Task { @MainActor in
+                    Self.imageManager.cancelImageRequest(requestID)
+                }
+            }
+            Task { @MainActor in
+                self.requestID = nil
+            }
+            box.resume(nil)
         }
     }
 
@@ -109,4 +134,41 @@ private struct ThumbnailRequestKey: Hashable {
     let id: String
     let pixelWidth: Int
     let pixelHeight: Int
+}
+
+private final class ThumbnailContinuationBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<UIImage?, Never>?
+
+    func set(_ continuation: CheckedContinuation<UIImage?, Never>) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.continuation = continuation
+    }
+
+    func resume(_ image: UIImage?) {
+        lock.lock()
+        let continuation = self.continuation
+        self.continuation = nil
+        lock.unlock()
+
+        continuation?.resume(returning: image)
+    }
+}
+
+private final class ThumbnailRequestIDBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var requestID: PHImageRequestID = PHInvalidImageRequestID
+
+    var value: PHImageRequestID {
+        lock.lock()
+        defer { lock.unlock() }
+        return requestID
+    }
+
+    func set(_ requestID: PHImageRequestID) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.requestID = requestID
+    }
 }

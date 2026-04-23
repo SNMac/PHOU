@@ -40,10 +40,10 @@
 | 갤러리 fetch 범위 | ✅ mixed media 전환 완료 | `fetchMedia()` 기반으로 사진/동영상 혼합 자산을 표시 |
 | 고해상도 원본 로딩 | ✅ 1차 구현 완료 | detail image loader와 현재/인접 페이지 우선 로딩이 반영됨 |
 | 동영상 재생 | ✅ 1차 구현 완료 | `AVPlayerViewController` 기반 재생은 가능하지만 제어 UI는 아직 최소 수준 |
-| 사진 초기 세로 정렬 | ⚠️ 부분 해결 | 최초 진입 직후에는 Y축 중앙 정렬이 어긋나고, 확대/축소 한 번 후에야 중앙 정렬되는 재현 이슈가 남아 있음 |
-| 상세 chrome 구성 | ⚠️ 사용자 방향과 불일치 | 현재 커스텀 capsule/circle UI라서 기본 SwiftUI toolbar/button 기반으로 재정렬 필요 |
-| 위치/날짜 포맷 | ⚠️ 단순 구현 | 위치는 city 급 문자열, 날짜는 단일 문자열만 표시되어 Photos 앱 수준의 위계와 시간 정보가 부족 |
-| 상세정보 시트 | ⚠️ 축약 구현 | 날짜/위치/종류/크기/즐겨찾기만 표시하고 파일명, 촬영 기기, 소속 앨범, 상세 시간 포맷이 없음 |
+| 사진 초기 세로 정렬 | ⚠️ 보정 후 재검증 필요 | `LayoutAwareScrollView` 기반 재-centering 경로를 추가했지만 실제 사용자 재현이 사라졌는지는 아직 수동 확인 필요 |
+| 상세 chrome 구성 | ✅ 기본 SwiftUI 전환 반영 | `NavigationStack + toolbar + safeAreaInset` 구조로 전환됨 |
+| 위치/날짜 포맷 | ✅ 1차 구현 완료 | 위치 유무에 따른 2줄 타이틀과 최근성/24시간 설정 기반 포맷이 코드에 반영됨 |
+| 상세정보 시트 | ✅ 1차 확장 완료 | 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범 표시 경로가 추가됨 |
 | 편집 기능 | ⚠️ 미정 | 현재는 안내 alert만 표시하며, crop-only 편집 범위를 실제로 구현할지 결정 필요 |
 
 ### 현재 구현 반영 상태
@@ -55,12 +55,13 @@
 - 동영상은 `requestPlayerItem(forVideo:)` + `AVPlayerViewController` 기반으로 재생 안정성 보정 완료
 - 활성 페이지가 아닌 동영상은 pause 하도록 로직 추가
 - 썸네일은 `PHCachingImageManager` + request cancel을 유지하면서 화질을 다시 `highQualityFormat` 쪽으로 복구
-- 상단/하단 chrome은 현재 커스텀 캡슐형 UI 초안이며, 기본 SwiftUI 요소로 재구성하는 후속 작업이 필요
-- 위치 표기는 현재 reverse geocoding 결과에서 대표 문자열 하나만 고르고 있어 `수원시 - 매산로3가` 같은 상세 표기 규칙이 아직 없음
-- 중앙 타이틀은 현재 날짜 한 줄 + 위치 한 줄 구성이라, 위치/날짜/시간 2단 구조 요구사항을 충족하지 못함
-- 상세정보 시트는 현재 최소 정보만 보여주며, 파일명/촬영 기기/소속 앨범을 아직 제공하지 않음
+- 상단/하단 chrome은 `NavigationStack + toolbar + safeAreaInset` 기반으로 전환됨
+- 중앙 타이틀은 위치 유무에 따라 `위치 / 날짜+시간` 또는 `날짜 / 시간` 2줄 구조를 사용함
+- 위치 표기는 `administrativeArea/locality/subLocality/thoroughfare/name` 조합 기반의 best-effort 상세 문자열로 확장됨
+- 상세정보 시트는 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 표시하도록 확장됨
+- 촬영 기기 표시는 현재 사진 자산에서 `requestImageDataAndOrientation` + TIFF metadata 추출 기반의 best-effort 구현이며, 비디오 및 일부 자산은 `정보 없음` fallback이 남음
 - 편집 버튼은 현재 "공개 시스템 사진 편집 UI를 직접 열 수 없다"는 안내 alert만 연결되어 있음
-- `xcodebuild` 빌드 검증 완료, iOS 17 시뮬레이터 앱 설치/런치 확인
+- `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build` 재성공
 - 테스트 타깃은 아직 없어 reducer/unit test는 미구현
 
 ---
@@ -221,6 +222,7 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 | 촬영 기기 메타데이터가 편집본, 다운로드본, 일부 비디오에서 비어 있을 수 있음 | 중간 | 메타데이터 추출 실패 시 "정보 없음" fallback을 허용하고 UX에 반영 |
 | 소속 앨범 조회가 많아지면 상세정보 시트 진입 시 지연이 생길 수 있음 | 중간 | 현재 asset 기준 필요한 시점에만 조회하고 결과 캐시를 검토 |
 | 사용자의 24시간 설정 / 한국어 표기 규칙이 formatter 구현과 어긋날 수 있음 | 중간 | `Date.FormatStyle` 또는 locale-aware formatter를 사용하고 실기기/시뮬레이터 검증 |
+| `NavigationStack`를 full-screen 뷰어 내부에 추가하면서 기존 presentation/navigation transition과 상호작용 차이가 생길 수 있음 | 중간 | 실제 진입/종료 애니메이션과 toolbar 동작을 시뮬레이터에서 수동 확인 |
 
 ---
 
@@ -240,9 +242,9 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - [x] 상세 뷰 배경이 탭으로 `systemBackground` / black 전환 가능함
 - [x] 상단/하단 chrome 초안이 현재 asset 메타데이터와 액션을 표시함
 - [ ] 최초 진입 직후 사진이 별도 확대/축소 상호작용 없이도 Y축 중앙 정렬됨
-- [ ] 상단/하단 chrome이 커스텀 capsule/circle 대신 기본 SwiftUI 요소로 정리됨
-- [ ] 위치 표기가 가능한 경우 `시/도 - 동/가/세부지명` 수준까지 더 자세히 표시됨
-- [ ] 중앙 타이틀이 위치/날짜/시간을 Photos 앱 유사 규칙으로 2줄 표시함
-- [ ] 상세정보 시트가 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 표시함
+- [x] 상단/하단 chrome이 커스텀 capsule/circle 대신 기본 SwiftUI 요소로 정리됨
+- [x] 위치 표기가 가능한 경우 `시/도 - 동/가/세부지명` 수준까지 더 자세히 표시됨
+- [x] 중앙 타이틀이 위치/날짜/시간을 Photos 앱 유사 규칙으로 2줄 표시함
+- [x] 상세정보 시트가 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 표시함
 - [ ] 편집 액션 정책이 확정되고 필요 시 crop-only 편집이 동작함
 - [ ] 진입/종료 및 mixed media 전환이 시뮬레이터에서 확인됨
