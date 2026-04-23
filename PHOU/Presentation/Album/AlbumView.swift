@@ -73,7 +73,12 @@ struct AlbumView: View {
                     if let coverAssetId = album.coverAssetId {
                         Color.clear
                             .aspectRatio(1, contentMode: .fill)
-                            .overlay { PhotoThumbnailView(id: coverAssetId) }
+                            .overlay {
+                                PhotoThumbnailView(
+                                    id: coverAssetId,
+                                    targetSize: CGSize(width: 60, height: 60)
+                                )
+                            }
                             .clipped()
                     } else {
                         Image(systemName: "photo.on.rectangle")

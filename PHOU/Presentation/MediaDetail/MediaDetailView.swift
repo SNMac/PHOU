@@ -13,9 +13,20 @@ import ComposableArchitecture
 
 struct MediaDetailView: View {
     @Bindable var store: StoreOf<MediaDetailFeature>
+    let transitionNamespace: Namespace.ID?
+
+    private var currentAssetID: String {
+        guard store.items.indices.contains(store.currentIndex) else { return "media-detail-fallback" }
+        return store.items[store.currentIndex].id
+    }
 
     var body: some View {
-        GeometryReader { proxy in
+        content
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        let detailContent = GeometryReader { proxy in
             ZStack(alignment: .top) {
                 Color.black
                     .ignoresSafeArea()
@@ -41,6 +52,13 @@ struct MediaDetailView: View {
                 topBar
             }
             .preferredColorScheme(.dark)
+        }
+
+        if let transitionNamespace {
+            detailContent
+                .navigationTransition(.zoom(sourceID: currentAssetID, in: transitionNamespace))
+        } else {
+            detailContent
         }
     }
 
@@ -231,7 +249,7 @@ private struct FillWidthPlayerView: UIViewControllerRepresentable {
         controller.player = player
         controller.videoGravity = .resizeAspect
         controller.view.backgroundColor = .black
-        controller.showsPlaybackControls = true
+        controller.showsPlaybackControls = false
         return controller
     }
 
@@ -283,7 +301,7 @@ private struct ZoomableImageView: UIViewRepresentable {
         private var lastContainerSize: CGSize = .zero
 
         func configure(_ scrollView: UIScrollView) {
-            imageView.contentMode = .scaleToFill
+            imageView.contentMode = .scaleAspectFit
             scrollView.addSubview(imageView)
         }
 
@@ -313,8 +331,15 @@ private struct ZoomableImageView: UIViewRepresentable {
         }
 
         private func resetZoom(in scrollView: UIScrollView, image: UIImage, containerSize: CGSize) {
-            let fittingWidth = max(containerSize.width, 1)
-            let scaledHeight = max(image.size.height * (fittingWidth / max(image.size.width, 1)), 1)
+            let safeWidth = max(containerSize.width, 1)
+            let safeHeight = max(containerSize.height, 1)
+            let widthScale = safeWidth / max(image.size.width, 1)
+            let heightScale = safeHeight / max(image.size.height, 1)
+            let fittingScale = min(widthScale, heightScale)
+            let fittedSize = CGSize(
+                width: max(image.size.width * fittingScale, 1),
+                height: max(image.size.height * fittingScale, 1)
+            )
 
             scrollView.minimumZoomScale = 1
             scrollView.maximumZoomScale = 4
@@ -322,7 +347,7 @@ private struct ZoomableImageView: UIViewRepresentable {
 
             imageView.frame = CGRect(
                 origin: .zero,
-                size: CGSize(width: fittingWidth, height: scaledHeight)
+                size: fittedSize
             )
             scrollView.contentSize = imageView.frame.size
             centerImage(in: scrollView)

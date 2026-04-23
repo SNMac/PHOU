@@ -59,20 +59,29 @@
 - [x] **5-5** 동영상 재생 및 페이지 이동 시 정지 확인
 - [x] **5-5-a** inactive video pause 수동 재확인
 - [x] **5-5-b** 동영상 탭 시 크래시 재현 여부 재확인
+- [x] **5-5-c** 동영상 상세에서 시스템 playback controls를 숨겨 기존 chrome과 겹치지 않도록 보정
+- [x] **5-5-d** 사진 initial fit 계산을 aspect-fit 기준으로 바꿔 세로 중앙 정렬 보정
+- [x] **5-5-e** iOS 18 zoom transition 기반 상세 진입 연결
+- [x] **5-5-f** 썸네일 요청 크기를 실제 셀 크기 기준으로 보정
+- [x] **5-5-g** 썸네일 로딩 시 `PHAsset` 재조회 감소 반영
+- [x] **5-5-h** 갤러리/앨범 그리드에 핀치 기반 열 수 조절 추가
 - [ ] **5-6** iPad 레이아웃/회전에서 기본 동작 이상 없는지 확인
   - 메모: 현재 세션에서는 XcodeBuildMCP 기본값 설정 도구 부재로 UI 자동 검증까지는 진행하지 못함
   - 추가 메모: 2026-04-23 수정 후 `xcodebuild` 재빌드 성공, iOS 17 시뮬레이터 앱 설치/런치 및 런치 화면 캡처 확인
   - 추가 메모: 사진 상단 정렬 보정, inactive video pause 로직, 썸네일 화질 복구 반영 후 빌드 재검증 완료
+  - 추가 메모: iOS 18 zoom transition, 실제 셀 크기 기반 썸네일, `PHAsset` cache, 핀치 열 수 조절 반영 후 `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build` 재성공
 
 ---
 
 ## 후속 후보 (Out of Scope Unless Needed)
 
 - [ ] 비디오 배지 / 재생 시간 오버레이
+- [x] 커스텀 비디오 플레이어 후속 이슈 초안 작성
+- [ ] 커스텀 비디오 플레이어 설계 및 구현
 - [ ] 동영상 pinch-to-zoom
 - [ ] 라이브 포토/버스트 등 특수 자산 표시 개선
 - [ ] 상세 뷰에서 삭제/즐겨찾기 등 액션 추가
-- [ ] iOS 17용 custom zoom transition 설계 또는 별도 Issue 분리
+- [ ] zoom transition이 off-screen source에서도 제품적으로 허용 가능한지 수동 확인
 - [ ] 갤러리 스크롤 성능이 계속 거슬리면 profiling 후 별도 Issue 분리
 
 ---

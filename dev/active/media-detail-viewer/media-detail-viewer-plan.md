@@ -11,6 +11,8 @@
 
 1차 범위는 `PhotoAsset` 기반 입력으로 사진과 동영상을 모두 표시할 수 있는 `MediaDetailFeature` / `MediaDetailView`를 만드는 것입니다. 사진은 pinch-to-zoom을 우선 지원하고, 동영상은 재생 중심으로 구현하되 추후 줌 확장이 가능하도록 상태/레이아웃 구조를 설계합니다. 첫 적용 화면은 `Gallery`와 `AlbumPhotoGrid`입니다.
 
+현재는 iOS 최소 버전이 18.0 이상으로 올라가면서, 상세 진입 전환도 시스템 zoom transition을 활용하는 방향으로 범위가 확장되었습니다. 또한 그리드 썸네일 쪽은 체감 성능 개선을 위해 실제 셀 크기 기반 요청과 asset 재조회 감소를 반영합니다.
+
 ---
 
 ## Current State Analysis
@@ -132,7 +134,8 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - `sheet`보다 `fullScreenCover` 또는 full-screen push가 더 자연스러울 가능성이 큽니다.
 - 다만 현재 앱 네비게이션 구조와 TCA presentation 패턴에 맞춰 최종 결정합니다.
 - 현재 구현은 `fullScreenCover` 기반입니다.
-- 셀에서 전체화면으로 확대되며 들어가는 zoom transition은 제품적으로 적합하지만, SwiftUI 공식 API는 iOS 18+라 현재 타깃(iOS 17+)에서는 커스텀 전환이 필요합니다.
+- iOS 18+에서는 `matchedTransitionSource` + zoom transition을 통해 셀에서 상세 뷰로 이어지는 확대 전환을 우선 적용합니다.
+- 동영상 재생 UI는 현재 브랜치에서 시스템 playback controls를 숨겨 기존 chrome 충돌만 해소하고, 커스텀 플레이어 설계/구현은 별도 후속 작업으로 분리합니다.
 
 ### 3. 사진/동영상 공통 pager + 타입별 콘텐츠 분리
 
@@ -156,7 +159,9 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 | 동영상 player lifecycle 누수/중복 재생 | 중간 | 현재 페이지 변화 시 재생 정지 규칙 정의 |
 | PhotoKit 원본 로딩 콜백 다중 호출 | 중간 | 기존 `PhotoThumbnailView`처럼 resume guard 유지 |
 | iPad에서 full-screen UX가 과도하게 iPhone 중심 | 중간 | 초기 문서 단계부터 iPad 레이아웃 확인 항목 포함 |
-| iOS 17에서 zoom transition을 제품 기대치만큼 자연스럽게 구현하기 어려움 | 중간 | 공식 API 대신 커스텀 오버레이 전환을 별도 범위로 분리 |
+| 확대 전환이 상세 뷰 내 paging과 함께 동작할 때 dismiss source가 바뀔 수 있음 | 중간 | zoom source는 현재 `currentIndex` 기준 asset id를 사용하고, off-screen 셀인 경우 시스템 fallback을 허용 |
+| 동영상 playback controls를 숨긴 상태라 현재 브랜치에서는 재생 제어가 부족함 | 높음 | 커스텀 비디오 플레이어를 별도 Issue로 분리하고 현재는 겹침 제거만 반영 |
+| 핀치 기반 열 수 변경 시 썸네일 재요청이 빈번해질 수 있음 | 중간 | 실제 셀 크기 기반 요청으로 정확도를 높이고, preheat는 후속 profiling 범위로 유지 |
 
 ---
 
@@ -165,7 +170,11 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - [x] `MediaDetailFeature` / `MediaDetailView`가 사진과 동영상을 모두 처리함
 - [x] `GalleryView`와 `AlbumPhotoGridView`에서 같은 뷰어를 재사용함
 - [x] 사진 pinch-to-zoom이 동작함
-- [ ] 동영상 재생이 정상 동작함
+- [x] 동영상 재생이 정상 동작함
 - [x] 좌우 스와이프로 이전/다음 미디어 이동이 가능함
 - [x] Swift 6 strict concurrency 경고 없이 빌드됨
+- [x] iOS 18 zoom transition 기반 상세 진입이 코드상 연결됨
+- [x] 갤러리/앨범 그리드에서 핀치로 열 수를 2~6 범위에서 조절할 수 있음
+- [x] 썸네일 요청이 실제 셀 크기를 기준으로 이뤄짐
+- [x] 썸네일 로딩 시 asset 재조회 감소가 반영됨
 - [ ] 진입/종료 및 mixed media 전환이 시뮬레이터에서 확인됨

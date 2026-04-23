@@ -10,12 +10,17 @@ import ComposableArchitecture
 
 struct AlbumPhotoGridView: View {
     @Bindable var store: StoreOf<AlbumPhotoGridFeature>
+    @Namespace private var mediaTransitionNamespace
+    @State private var columnCount = 3
+    @State private var pinchStartColumnCount: Int?
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2),
-        GridItem(.flexible(), spacing: 2)
-    ]
+    private let gridSpacing: CGFloat = 2
+    private let minColumnCount = 2
+    private let maxColumnCount = 6
+
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columnCount)
+    }
 
     var body: some View {
         content
@@ -23,7 +28,10 @@ struct AlbumPhotoGridView: View {
             .navigationBarTitleDisplayMode(.inline)
             .onAppear { store.send(.view(.onAppear)) }
             .fullScreenCover(item: $store.scope(state: \.mediaDetail, action: \.mediaDetail)) { store in
-                MediaDetailView(store: store)
+                MediaDetailView(
+                    store: store,
+                    transitionNamespace: mediaTransitionNamespace
+                )
             }
     }
 
@@ -57,34 +65,69 @@ struct AlbumPhotoGridView: View {
     }
 
     private var photoGrid: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 2) {
-                ForEach(store.assets) { asset in
-                    Button {
-                        store.send(.view(.mediaTapped(asset.id)))
-                    } label: {
-                        Color.clear
-                            .aspectRatio(1, contentMode: .fill)
-                            .overlay {
-                                PhotoThumbnailView(id: asset.id)
-                                    .overlay(alignment: .bottomTrailing) {
-                                        if asset.mediaType == .video {
-                                            Image(systemName: "video.fill")
-                                                .font(.caption.weight(.semibold))
-                                                .foregroundStyle(.white)
-                                                .padding(6)
-                                                .background(.black.opacity(0.6))
-                                                .clipShape(Circle())
-                                                .padding(6)
+        GeometryReader { proxy in
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: gridSpacing) {
+                    ForEach(store.assets) { asset in
+                        Button {
+                            store.send(.view(.mediaTapped(asset.id)))
+                        } label: {
+                            Color.clear
+                                .aspectRatio(1, contentMode: .fill)
+                                .overlay {
+                                    PhotoThumbnailView(
+                                        id: asset.id,
+                                        targetSize: CGSize(
+                                            width: cellLength(for: proxy.size.width),
+                                            height: cellLength(for: proxy.size.width)
+                                        )
+                                    )
+                                        .overlay(alignment: .bottomTrailing) {
+                                            if asset.mediaType == .video {
+                                                Image(systemName: "video.fill")
+                                                    .font(.caption.weight(.semibold))
+                                                    .foregroundStyle(.white)
+                                                    .padding(6)
+                                                    .background(.black.opacity(0.6))
+                                                    .clipShape(Circle())
+                                                    .padding(6)
+                                            }
                                         }
-                                    }
-                            }
-                            .clipped()
-                            .contentShape(Rectangle())
+                                }
+                                .clipped()
+                                .contentShape(Rectangle())
+                                .matchedTransitionSource(id: asset.id, in: mediaTransitionNamespace)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
+            .simultaneousGesture(columnResizeGesture)
         }
+    }
+
+    private var columnResizeGesture: some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                if pinchStartColumnCount == nil {
+                    pinchStartColumnCount = columnCount
+                }
+
+                guard let pinchStartColumnCount else { return }
+                let proposed = Int((CGFloat(pinchStartColumnCount) / value.magnification).rounded())
+                columnCount = clampedColumnCount(proposed)
+            }
+            .onEnded { _ in
+                pinchStartColumnCount = nil
+            }
+    }
+
+    private func cellLength(for availableWidth: CGFloat) -> CGFloat {
+        let totalSpacing = gridSpacing * CGFloat(max(columnCount - 1, 0))
+        return floor((availableWidth - totalSpacing) / CGFloat(columnCount))
+    }
+
+    private func clampedColumnCount(_ value: Int) -> Int {
+        min(max(value, minColumnCount), maxColumnCount)
     }
 }

@@ -11,16 +11,21 @@ import UIKit
 
 struct PhotoThumbnailView: View {
     let id: String
+    let targetSize: CGSize
+
     @State private var image: UIImage?
     @State private var requestID: PHImageRequestID?
 
     private static let imageManager = PHCachingImageManager()
+    private static let assetCache = NSCache<NSString, PHAsset>()
 
-    private static var targetSize: CGSize {
-        let cellWidth = floor(UIScreen.main.bounds.width / 3)
+    private var requestKey: ThumbnailRequestKey {
         let scale = UIScreen.main.scale
-        let length = cellWidth * scale
-        return CGSize(width: length, height: length)
+        return ThumbnailRequestKey(
+            id: id,
+            pixelWidth: Int((targetSize.width * scale).rounded()),
+            pixelHeight: Int((targetSize.height * scale).rounded())
+        )
     }
 
     var body: some View {
@@ -33,7 +38,7 @@ struct PhotoThumbnailView: View {
                 Color(uiColor: .secondarySystemBackground)
             }
         }
-        .task(id: id) {
+        .task(id: requestKey) {
             image = await loadThumbnail()
         }
         .onDisappear {
@@ -45,8 +50,9 @@ struct PhotoThumbnailView: View {
     private func loadThumbnail() async -> UIImage? {
         cancelThumbnailRequest()
 
-        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil)
-        guard let asset = fetchResult.firstObject else { return nil }
+        let requestSize = resolvedTargetSize()
+        guard requestSize.width > 0, requestSize.height > 0 else { return nil }
+        guard let asset = resolvedAsset() else { return nil }
 
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
@@ -58,7 +64,7 @@ struct PhotoThumbnailView: View {
             var resumed = false
             requestID = Self.imageManager.requestImage(
                 for: asset,
-                targetSize: Self.targetSize,
+                targetSize: requestSize,
                 contentMode: .aspectFill,
                 options: options
             ) { result, info in
@@ -77,4 +83,30 @@ struct PhotoThumbnailView: View {
         Self.imageManager.cancelImageRequest(requestID)
         self.requestID = nil
     }
+
+    private func resolvedAsset() -> PHAsset? {
+        let cacheKey = id as NSString
+        if let asset = Self.assetCache.object(forKey: cacheKey) {
+            return asset
+        }
+
+        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil)
+        guard let asset = fetchResult.firstObject else { return nil }
+        Self.assetCache.setObject(asset, forKey: cacheKey)
+        return asset
+    }
+
+    private func resolvedTargetSize() -> CGSize {
+        let scale = UIScreen.main.scale
+        return CGSize(
+            width: max(targetSize.width * scale, 1),
+            height: max(targetSize.height * scale, 1)
+        )
+    }
+}
+
+private struct ThumbnailRequestKey: Hashable {
+    let id: String
+    let pixelWidth: Int
+    let pixelHeight: Int
 }

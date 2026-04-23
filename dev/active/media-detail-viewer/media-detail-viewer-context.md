@@ -67,6 +67,10 @@
 - 그리드 셀의 비디오에는 우하단 `video.fill` 배지 표시
 - `PhotoLibraryClient.fetchMedia()` 추가로 갤러리 전체가 mixed media fetch를 사용
 - `MediaDetailView`는 최근 수정으로 사진 정렬/zoom/pan, inactive video pause, 썸네일 품질을 추가 보정
+- iOS 18 기준으로 `matchedTransitionSource` + zoom transition 기반 상세 진입을 적용하는 방향으로 전환
+- `GalleryView`, `AlbumPhotoGridView`는 핀치 제스처로 2~6열 범위에서 동적으로 열 수를 변경 가능
+- `PhotoThumbnailView`는 실제 셀 크기를 받아 그 크기에 맞는 썸네일을 요청하고, `PHAsset` 재조회 비용을 줄이기 위해 간단한 asset cache를 둠
+- 동영상은 현재 브랜치에서 시스템 playback controls를 숨겨 상세 뷰 chrome과 겹치지 않게만 정리함
 
 즉, 현재 구현은 "재사용 가능한 사진/동영상 통합 뷰어"의 첫 버전까지는 도달해 있습니다.
 
@@ -86,7 +90,7 @@
 - `@preconcurrency import Photos` 패턴은 의도적이며, 새 PhotoKit 접근 코드에도 유지하는 편이 좋습니다.
 - `PHImageRequestOptions.isSynchronous = false` 사용 시 continuation 이중 resume 방지가 필요합니다.
 - `.cornerRadius(_:)` 대신 `.clipShape(RoundedRectangle(cornerRadius:))` 사용 규칙을 유지합니다.
-- iOS 17 타깃에서는 SwiftUI 공식 `matchedTransitionSource` / `navigationTransition(.zoom(...))`를 사용할 수 없습니다.
+- iOS 18 타깃에서는 `matchedTransitionSource`와 zoom transition을 `fullScreenCover` 진입에도 활용할 수 있습니다. 근거: WWDC24 “Enhance your UI animations and transitions”에서 zoom transition이 navigation과 presentation 모두에 동작한다고 설명.
 
 ---
 
@@ -146,19 +150,41 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 이 변경으로 pinch 지점 기준 확대와 확대 상태의 내부 pan을 시스템 scroll/zoom 동작에 맡김
 - 동영상은 `requestAVAsset` + `VideoPlayer` 조합에서 `requestPlayerItem(forVideo:)` + `AVPlayerViewController` 래퍼로 변경
 - inactive page가 되면 `onChange(of: isActive)`에서 pause 하도록 보정
+- 현재 세션에서 사진 initial fit 계산을 width 기준 고정에서 container aspect-fit 계산으로 바꿔 세로 중앙 정렬을 보정
+- 현재 세션에서 `AVPlayerViewController.showsPlaybackControls = false`로 바꿔 상세 뷰 상단 chrome과 겹치지 않게 정리
 - 썸네일은 `PHCachingImageManager` 사용, `onDisappear` cancel 유지
 - 한때 성능 보정을 위해 `fastFormat`으로 낮췄다가 화질 저하가 커서 현재는 `highQualityFormat` + `exact`로 복구
+- 현재 세션에서 썸네일 요청 크기를 `UIScreen.main.bounds.width / 3` 고정값 대신 실제 셀 크기 기반으로 변경
+- 현재 세션에서 local identifier 기준 `PHAsset.fetchAssets(...)` 반복 비용을 줄이기 위해 `NSCache<NSString, PHAsset>` 기반의 간단한 asset cache를 추가
+- 갤러리/앨범 그리드는 핀치 제스처로 열 수를 2~6 범위에서 동적으로 변경하도록 보정
+- iOS 18 상세 전환은 각 셀에 `matchedTransitionSource(id: asset.id, in: namespace)`를 주고, 상세 뷰는 현재 `currentIndex`의 asset id로 zoom transition source를 매칭
 
 ### 5. 이번 세션에서 실제로 수정된 파일
 
 - `PHOU/Presentation/MediaDetail/MediaDetailView.swift`
-  - 사진 상단 정렬 문제 보정
+  - 사진 initial fit 계산을 aspect-fit 기준으로 보정해 Y축 중앙 정렬 수정
   - `UIScrollView` 기반 zoom/pan 도입
   - inactive video pause 로직 추가
   - 플레이어 로딩 경로를 `requestPlayerItem(forVideo:)`로 교체
+  - iOS 18 zoom transition 적용
+  - 시스템 playback controls 비활성화
 - `PHOU/Presentation/Components/PhotoThumbnailView.swift`
   - caching/cancel 유지
   - 썸네일 화질 복구
+  - 실제 셀 크기 기반 요청
+  - `PHAsset` cache 추가
+- `PHOU/Presentation/Gallery/GalleryView.swift`
+  - zoom transition source 연결
+  - 핀치 기반 열 수 조절
+  - 실제 셀 크기 전달
+- `PHOU/Presentation/Album/AlbumPhotoGridView.swift`
+  - zoom transition source 연결
+  - 핀치 기반 열 수 조절
+  - 실제 셀 크기 전달
+- `PHOU/Presentation/Album/AlbumView.swift`
+  - 앨범 커버 썸네일도 변경된 `PhotoThumbnailView` 시그니처에 맞춰 실제 크기 전달
+- `dev/active/media-detail-viewer/custom-video-player-issue.md`
+  - 커스텀 비디오 플레이어 후속 작업용 이슈 초안 작성
 - `dev/active/media-detail-viewer/media-detail-viewer-tasks.md`
   - 진행 상태 메모 및 검증 현황 반영
 
@@ -166,15 +192,15 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 
 ## 오픈 질문
 
-- 현재 inactive video pause 수정이 실제 사용자 시나리오에서 충분한지
-- 갤러리 썸네일 품질 복구 후에도 스크롤 성능이 괜찮은지
-- iOS 17에서 custom zoom transition을 별도 범위로 진행할지
+- 현재 숨겨 둔 시스템 playback controls 대신 어떤 커스텀 컨트롤 레이아웃을 채택할지
+- 핀치 기반 열 수 변경이 회전/iPad/split view에서도 충분히 자연스러운지
+- 썸네일 preheat(`startCachingImages`)가 실제 체감 성능 개선에 얼마나 기여하는지 profiling이 필요한지
 
 ---
 
 ## 다음 즉시 작업
 
-1. 시뮬레이터에서 사진 세로 정렬, inactive video pause, 썸네일 품질 체감 수동 검증
-2. 아직 남아 있으면 video playback 회귀 재현 조건 수집
-3. zoom transition 요구가 유지되면 별도 issue 또는 후속 범위로 분리
+1. 시뮬레이터에서 사진 세로 중앙 정렬, zoom transition, 핀치 열 수 변경 수동 검증
+2. 동영상 상세에서 현재 임시 상태(controls hidden)가 제품적으로 허용 가능한지 확인
+3. 커스텀 비디오 플레이어 이슈를 기준으로 후속 범위 분리
 4. 테스트 타깃 추가 여부 결정
