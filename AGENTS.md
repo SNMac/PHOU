@@ -97,3 +97,5 @@ xcodebuild -resolvePackageDependencies
 - 여러 파일 수정 시 계획 먼저 설명
 - 빌드 깨지면 즉시 복구
 - 기존 패턴 우선
+- 큰 작업 시작 시 `dev/active/[task-name]/` 아래 `plan/context/tasks` 문서 생성을 우선 고려
+- 긴 세션 마무리나 컨텍스트 전환 전에는 관련 `dev/active` 문서 업데이트를 우선 고려

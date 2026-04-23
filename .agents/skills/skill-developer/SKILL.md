@@ -1,426 +1,91 @@
 ---
 name: skill-developer
-description: Create and manage Codex skills following Anthropic best practices. Use when creating new skills, modifying skill-rules.json, understanding trigger patterns, working with hooks, debugging skill activation, or implementing progressive disclosure. Covers skill structure, YAML frontmatter, trigger types (keywords, intent patterns, file paths, content patterns), enforcement levels (block, suggest, warn), hook mechanisms (UserPromptSubmit, PreToolUse), session tracking, and the 500-line rule.
+description: Create and manage Codex project skills under .agents/skills. Use when creating new skills, converting Claude assets into Codex skills, improving skill descriptions, or understanding how local skill discovery works in this repository. Covers skill structure, YAML frontmatter, progressive disclosure, description quality, and project-specific migration guidance.
 ---
 
 # Skill Developer Guide
 
 ## Purpose
 
-Comprehensive guide for creating and managing skills in Codex with auto-activation system, following Anthropic's official best practices including the 500-line rule and progressive disclosure pattern.
-
-## When to Use This Skill
-
-Automatically activates when you mention:
-- Creating or adding skills
-- Modifying skill triggers or rules
-- Understanding how skill activation works
-- Debugging skill activation issues
-- Working with skill-rules.json
-- Hook system mechanics
-- Codex best practices
-- Progressive disclosure
-- YAML frontmatter
-- 500-line rule
-
----
-
-## System Overview
-
-### Two-Hook Architecture
-
-**1. UserPromptSubmit Hook** (Proactive Suggestions)
-- **File**: `.Codex/hooks/skill-activation-prompt.ts`
-- **Trigger**: BEFORE Codex sees user's prompt
-- **Purpose**: Suggest relevant skills based on keywords + intent patterns
-- **Method**: Injects formatted reminder as context (stdout → Codex's input)
-- **Use Cases**: Topic-based skills, implicit work detection
-
-**2. Stop Hook - Error Handling Reminder** (Gentle Reminders)
-- **File**: `.Codex/hooks/error-handling-reminder.ts`
-- **Trigger**: AFTER Codex finishes responding
-- **Purpose**: Gentle reminder to self-assess error handling in code written
-- **Method**: Analyzes edited files for risky patterns, displays reminder if needed
-- **Use Cases**: Error handling awareness without blocking friction
-
-**Philosophy Change (2025-10-27):** We moved away from blocking PreToolUse for Sentry/error handling. Instead, use gentle post-response reminders that don't block workflow but maintain code quality awareness.
-
-### Configuration File
-
-**Location**: `.Codex/skills/skill-rules.json`
-
-Defines:
-- All skills and their trigger conditions
-- Enforcement levels (block, suggest, warn)
-- File path patterns (glob)
-- Content detection patterns (regex)
-- Skip conditions (session tracking, file markers, env vars)
-
----
-
-## Skill Types
-
-### 1. Guardrail Skills
-
-**Purpose:** Enforce critical best practices that prevent errors
-
-**Characteristics:**
-- Type: `"guardrail"`
-- Enforcement: `"block"`
-- Priority: `"critical"` or `"high"`
-- Block file edits until skill used
-- Prevent common mistakes (column names, critical errors)
-- Session-aware (don't repeat nag in same session)
-
-**Examples:**
-- `database-verification` - Verify table/column names before Prisma queries
-- `frontend-dev-guidelines` - Enforce React/TypeScript patterns
-
-**When to Use:**
-- Mistakes that cause runtime errors
-- Data integrity concerns
-- Critical compatibility issues
-
-### 2. Domain Skills
-
-**Purpose:** Provide comprehensive guidance for specific areas
-
-**Characteristics:**
-- Type: `"domain"`
-- Enforcement: `"suggest"`
-- Priority: `"high"` or `"medium"`
-- Advisory, not mandatory
-- Topic or domain-specific
-- Comprehensive documentation
-
-**Examples:**
-- `backend-dev-guidelines` - Node.js/Express/TypeScript patterns
-- `frontend-dev-guidelines` - React/TypeScript best practices
-- `error-tracking` - Sentry integration guidance
-
-**When to Use:**
-- Complex systems requiring deep knowledge
-- Best practices documentation
-- Architectural patterns
-- How-to guides
-
----
-
-## Quick Start: Creating a New Skill
-
-### Step 1: Create Skill File
-
-**Location:** `.Codex/skills/{skill-name}/SKILL.md`
-
-**Template:**
-```markdown
----
-name: my-new-skill
-description: Brief description including keywords that trigger this skill. Mention topics, file types, and use cases. Be explicit about trigger terms.
----
-
-# My New Skill
-
-## Purpose
-What this skill helps with
+Guide for creating and maintaining Codex-compatible local skills in this repository.
 
 ## When to Use
-Specific scenarios and conditions
 
-## Key Information
-The actual guidance, documentation, patterns, examples
-```
+Use this skill when working on:
 
-**Best Practices:**
-- ✅ **Name**: Lowercase, hyphens, gerund form (verb + -ing) preferred
-- ✅ **Description**: Include ALL trigger keywords/phrases (max 1024 chars)
-- ✅ **Content**: Under 500 lines - use reference files for details
-- ✅ **Examples**: Real code examples
-- ✅ **Structure**: Clear headings, lists, code blocks
+- creating or adding skills
+- converting Claude commands or agents into Codex skills
+- improving skill descriptions or structure
+- understanding how local skill discovery works
+- organizing reference material for a skill
 
-### Step 2: Add to skill-rules.json
+## Skill Layout
 
-See [SKILL_RULES_REFERENCE.md](SKILL_RULES_REFERENCE.md) for complete schema.
+Store project-local skills at:
 
-**Basic Template:**
-```json
-{
-  "my-new-skill": {
-    "type": "domain",
-    "enforcement": "suggest",
-    "priority": "medium",
-    "promptTriggers": {
-      "keywords": ["keyword1", "keyword2"],
-      "intentPatterns": ["(create|add).*?something"]
-    }
-  }
-}
-```
+`./.agents/skills/{skill-name}/SKILL.md`
 
-### Step 3: Test Triggers
+Use one directory per skill. Add extra reference files only when they materially improve the skill and keep them near the skill.
 
-**Test UserPromptSubmit:**
-```bash
-echo '{"session_id":"test","prompt":"your test prompt"}' | \
-  npx tsx .Codex/hooks/skill-activation-prompt.ts
-```
+## Required Frontmatter
 
-**Test PreToolUse:**
-```bash
-cat <<'EOF' | npx tsx .Codex/hooks/skill-verification-guard.ts
-{"session_id":"test","tool_name":"Edit","tool_input":{"file_path":"test.ts"}}
-EOF
-```
+Each skill should begin with:
 
-### Step 4: Refine Patterns
-
-Based on testing:
-- Add missing keywords
-- Refine intent patterns to reduce false positives
-- Adjust file path patterns
-- Test content patterns against actual files
-
-### Step 5: Follow Anthropic Best Practices
-
-✅ Keep SKILL.md under 500 lines
-✅ Use progressive disclosure with reference files
-✅ Add table of contents to reference files > 100 lines
-✅ Write detailed description with trigger keywords
-✅ Test with 3+ real scenarios before documenting
-✅ Iterate based on actual usage
-
+```markdown
 ---
-
-## Enforcement Levels
-
-### BLOCK (Critical Guardrails)
-
-- Physically prevents Edit/Write tool execution
-- Exit code 2 from hook, stderr → Codex
-- Codex sees message and must use skill to proceed
-- **Use For**: Critical mistakes, data integrity, security issues
-
-**Example:** Database column name verification
-
-### SUGGEST (Recommended)
-
-- Reminder injected before Codex sees prompt
-- Codex is aware of relevant skills
-- Not enforced, just advisory
-- **Use For**: Domain guidance, best practices, how-to guides
-
-**Example:** Frontend development guidelines
-
-### WARN (Optional)
-
-- Low priority suggestions
-- Advisory only, minimal enforcement
-- **Use For**: Nice-to-have suggestions, informational reminders
-
-**Rarely used** - most skills are either BLOCK or SUGGEST.
-
+name: my-skill
+description: Clear description with the terms users are likely to mention when this skill should apply.
 ---
-
-## Skip Conditions & User Control
-
-### 1. Session Tracking
-
-**Purpose:** Don't nag repeatedly in same session
-
-**How it works:**
-- First edit → Hook blocks, updates session state
-- Second edit (same session) → Hook allows
-- Different session → Blocks again
-
-**State File:** `.Codex/hooks/state/skills-used-{session_id}.json`
-
-### 2. File Markers
-
-**Purpose:** Permanent skip for verified files
-
-**Marker:** `// @skip-validation`
-
-**Usage:**
-```typescript
-// @skip-validation
-import { PrismaService } from './prisma';
-// This file has been manually verified
 ```
 
-**NOTE:** Use sparingly - defeats the purpose if overused
+The `description` matters because Codex uses the skill list and descriptions to match skills to tasks.
 
-### 3. Environment Variables
+## Recommended Structure
 
-**Purpose:** Emergency disable, temporary override
+A good `SKILL.md` usually contains:
 
-**Global disable:**
-```bash
-export SKIP_SKILL_GUARDRAILS=true  # Disables ALL PreToolUse blocks
-```
+1. Purpose
+2. When to Use
+3. Workflow or Key Information
+4. Output Expectations
+5. Project-specific notes when needed
 
-**Skill-specific:**
-```bash
-export SKIP_DB_VERIFICATION=true
-export SKIP_ERROR_REMINDER=true
-```
+## Best Practices
 
----
+- Keep `SKILL.md` focused and usually under 500 lines.
+- Put likely user wording into the description.
+- Prefer concrete repository terms over generic jargon.
+- Use progressive disclosure: keep the main skill short and move details to nearby references when needed.
+- Write instructions that help execution, not just explanation.
+- Keep local file paths accurate.
 
-## Testing Checklist
+## Creating a New Skill
 
-When creating a new skill, verify:
+1. Choose a short kebab-case skill name.
+2. Create `.agents/skills/{skill-name}/SKILL.md`.
+3. Add frontmatter with a strong, discoverable description.
+4. Add a concise workflow and project-specific guidance.
+5. Mentally test the description against a few realistic prompts.
 
-- [ ] Skill file created in `.Codex/skills/{name}/SKILL.md`
-- [ ] Proper frontmatter with name and description
-- [ ] Entry added to `skill-rules.json`
-- [ ] Keywords tested with real prompts
-- [ ] Intent patterns tested with variations
-- [ ] File path patterns tested with actual files
-- [ ] Content patterns tested against file contents
-- [ ] Block message is clear and actionable (if guardrail)
-- [ ] Skip conditions configured appropriately
-- [ ] Priority level matches importance
-- [ ] No false positives in testing
-- [ ] No false negatives in testing
-- [ ] Performance is acceptable (<100ms or <200ms)
-- [ ] JSON syntax validated: `jq . skill-rules.json`
-- [ ] **SKILL.md under 500 lines** ⭐
-- [ ] Reference files created if needed
-- [ ] Table of contents added to files > 100 lines
+## Migrating From Claude
 
----
+When converting `.claude/...` assets into Codex skills:
 
-## Reference Files
+- Claude `/commands/*.md` usually become one focused `SKILL.md`
+- Claude `/agents/*.md` usually become domain skills with a clear workflow
+- replace `.claude/CLAUDE.md` references with `AGENTS.md` or local project docs
+- remove Claude-only slash-command or hook assumptions
+- do not copy unsupported `.Codex/hooks` or `skill-rules.json` instructions unless they actually exist in the current project
 
-For detailed information on specific topics, see:
+## What To Avoid
 
-### [TRIGGER_TYPES.md](TRIGGER_TYPES.md)
-Complete guide to all trigger types:
-- Keyword triggers (explicit topic matching)
-- Intent patterns (implicit action detection)
-- File path triggers (glob patterns)
-- Content patterns (regex in files)
-- Best practices and examples for each
-- Common pitfalls and testing strategies
+- references to nonexistent hook files
+- instructions that depend on Claude-only command infrastructure
+- repository-agnostic filler that does not help future execution
+- overly long skills that hide the main workflow
 
-### [SKILL_RULES_REFERENCE.md](SKILL_RULES_REFERENCE.md)
-Complete skill-rules.json schema:
-- Full TypeScript interface definitions
-- Field-by-field explanations
-- Complete guardrail skill example
-- Complete domain skill example
-- Validation guide and common errors
+## PHOU Notes
 
-### [HOOK_MECHANISMS.md](HOOK_MECHANISMS.md)
-Deep dive into hook internals:
-- UserPromptSubmit flow (detailed)
-- PreToolUse flow (detailed)
-- Exit code behavior table (CRITICAL)
-- Session state management
-- Performance considerations
-
-### [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
-Comprehensive debugging guide:
-- Skill not triggering (UserPromptSubmit)
-- PreToolUse not blocking
-- False positives (too many triggers)
-- Hook not executing at all
-- Performance issues
-
-### [PATTERNS_LIBRARY.md](PATTERNS_LIBRARY.md)
-Ready-to-use pattern collection:
-- Intent pattern library (regex)
-- File path pattern library (glob)
-- Content pattern library (regex)
-- Organized by use case
-- Copy-paste ready
-
-### [ADVANCED.md](ADVANCED.md)
-Future enhancements and ideas:
-- Dynamic rule updates
-- Skill dependencies
-- Conditional enforcement
-- Skill analytics
-- Skill versioning
-
----
-
-## Quick Reference Summary
-
-### Create New Skill (5 Steps)
-
-1. Create `.Codex/skills/{name}/SKILL.md` with frontmatter
-2. Add entry to `.Codex/skills/skill-rules.json`
-3. Test with `npx tsx` commands
-4. Refine patterns based on testing
-5. Keep SKILL.md under 500 lines
-
-### Trigger Types
-
-- **Keywords**: Explicit topic mentions
-- **Intent**: Implicit action detection
-- **File Paths**: Location-based activation
-- **Content**: Technology-specific detection
-
-See [TRIGGER_TYPES.md](TRIGGER_TYPES.md) for complete details.
-
-### Enforcement
-
-- **BLOCK**: Exit code 2, critical only
-- **SUGGEST**: Inject context, most common
-- **WARN**: Advisory, rarely used
-
-### Skip Conditions
-
-- **Session tracking**: Automatic (prevents repeated nags)
-- **File markers**: `// @skip-validation` (permanent skip)
-- **Env vars**: `SKIP_SKILL_GUARDRAILS` (emergency disable)
-
-### Anthropic Best Practices
-
-✅ **500-line rule**: Keep SKILL.md under 500 lines
-✅ **Progressive disclosure**: Use reference files for details
-✅ **Table of contents**: Add to reference files > 100 lines
-✅ **One level deep**: Don't nest references deeply
-✅ **Rich descriptions**: Include all trigger keywords (max 1024 chars)
-✅ **Test first**: Build 3+ evaluations before extensive documentation
-✅ **Gerund naming**: Prefer verb + -ing (e.g., "processing-pdfs")
-
-### Troubleshoot
-
-Test hooks manually:
-```bash
-# UserPromptSubmit
-echo '{"prompt":"test"}' | npx tsx .Codex/hooks/skill-activation-prompt.ts
-
-# PreToolUse
-cat <<'EOF' | npx tsx .Codex/hooks/skill-verification-guard.ts
-{"tool_name":"Edit","tool_input":{"file_path":"test.ts"}}
-EOF
-```
-
-See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for complete debugging guide.
-
----
-
-## Related Files
-
-**Configuration:**
-- `.Codex/skills/skill-rules.json` - Master configuration
-- `.Codex/hooks/state/` - Session tracking
-- `.Codex/settings.json` - Hook registration
-
-**Hooks:**
-- `.Codex/hooks/skill-activation-prompt.ts` - UserPromptSubmit
-- `.Codex/hooks/error-handling-reminder.ts` - Stop event (gentle reminders)
-
-**All Skills:**
-- `.Codex/skills/*/SKILL.md` - Skill content files
-
----
-
-**Skill Status**: COMPLETE - Restructured following Anthropic best practices ✅
-**Line Count**: < 500 (following 500-line rule) ✅
-**Progressive Disclosure**: Reference files for detailed information ✅
-
-**Next**: Create more skills, refine patterns based on usage
+- This repository already uses `AGENTS.md` and `dev/active/...` as durable guidance layers.
+- Skills here should reinforce those rules rather than replace them.
+- For planning and handoff work, prefer the existing `dev-docs` and `dev-docs-update` skills.
