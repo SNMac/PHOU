@@ -55,7 +55,7 @@ extension PhotoLibraryClient: DependencyKey {
                     id: asset.localIdentifier,
                     creationDate: asset.creationDate,
                     isFavorite: asset.isFavorite,
-                    mediaType: .image
+                    mediaType: mediaType(from: asset.mediaType)
                 ))
             }
             return assets
@@ -152,10 +152,17 @@ private extension PhotoAuthStatus {
     }
 }
 
+private func mediaType(from type: PHAssetMediaType) -> PhotoAsset.MediaType {
+    switch type {
+    case .image: return .image
+    case .video: return .video
+    default: return .unknown
+    }
+}
+
 private func firstAssetId(in collection: PHAssetCollection) -> String? {
     let options = PHFetchOptions()
     options.fetchLimit = 1
     options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
     return PHAsset.fetchAssets(in: collection, options: options).firstObject?.localIdentifier
 }
-

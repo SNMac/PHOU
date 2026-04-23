@@ -148,6 +148,26 @@ SwiftUI의 공식 해법은 아래 조합이다.
 
 현재는 타깃 유지가 우선이므로 미적용 상태로 유지하는 것이 안전하다.
 
+### 9. 앨범 상세의 mixed media 의도 반영
+
+PR 리뷰에서는 `fetchAssetsInAlbum`과 앨범 커버 선택 시 이미지 전용 `predicate`를 넣어 일관성을 맞추자는 제안이 있었다.
+
+하지만 이 앱의 실제 의도는 **사진과 동영상을 모두 정리할 수 있는 앱**이므로, 앨범 상세에서 비디오를 제외하는 방향은 제품 의도와 맞지 않는다.
+
+따라서 `fetchAssetsInAlbum`에는 이미지 전용 필터를 추가하지 않고, 대신 `PHAsset.mediaType`을 실제 값 기준으로 `PhotoAsset.MediaType`에 매핑하도록 수정했다.
+
+```swift
+mediaType: mediaType(from: asset.mediaType)
+```
+
+핵심 의도는 다음과 같다.
+
+- 앨범 상세 그리드가 사진/동영상 혼합 자산을 그대로 반영
+- 데이터 모델의 `mediaType`과 실제 PhotoKit asset 타입을 일치시킴
+- 향후 비디오 배지나 mixed media UI 확장 시 기반 정보 보존
+
+현재 커버 이미지는 기존 동작대로 앨범의 최신 자산 기준을 유지한다. 즉, 최신 항목이 비디오면 비디오 썸네일이 커버가 될 수 있다.
+
 ---
 
 ## 최종 커밋 히스토리 (feature/#5-album)
@@ -169,8 +189,9 @@ e158a5b feat: #5 - coverAssetId 필드 정리 및 fetchAlbums 첫 번째 에셋 
 
 1. **터치 영역/구분선 최종 수동 테스트** — 앨범 셀의 빈 여백 탭과 separator 전체 폭 표시 재확인
 2. **빈 앨범 / 권한 없음 시나리오 확인**
-3. **zoom navigation 전환 필요 시 방향 결정** — iOS 18 상향 vs 커스텀 전환
-4. **PR 생성** — `feature/#5-album` → `develop` (GitHub Issue #5 close)
+3. **mixed media UI 확장 검토** — 비디오 배지/길이 표시 등 필요 여부 판단
+4. **zoom navigation 전환 필요 시 방향 결정** — iOS 18 상향 vs 커스텀 전환
+5. **PR 생성** — `feature/#5-album` → `develop` (GitHub Issue #5 close)
 
 ---
 

@@ -38,6 +38,9 @@
   - GalleryView 패턴과 동일한 3-column LazyVGrid
   - `navigationTitle(store.albumTitle)`, loading/error/grid 분기
   - 커밋: `9a288a9`
+- [x] **3-3** 앨범 상세 mixed media 타입 보존
+  - `fetchAssetsInAlbum(_:)`에서 `PhotoAsset.mediaType`을 `.image` 고정값이 아니라 실제 `PHAsset.mediaType` 기반으로 매핑
+  - 의도: 사진/동영상을 모두 정리하는 앱 방향과 일치하도록 album fetch 결과 보존
 
 ---
 
@@ -80,6 +83,9 @@
   - 검토 결과: SwiftUI 공식 `matchedTransitionSource` + `navigationTransition(.zoom(...))` 는 `iOS 18+`
   - 현재 타깃: `iOS/iPadOS 17.0+`
   - 선택지: 배포 타깃 상향 또는 커스텀 전환 구현
+- [ ] **6-2** mixed media 표시 방식 검토
+  - 현재 album fetch는 사진/동영상을 모두 유지함
+  - 필요 시 비디오 배지, 재생 시간, 필터 UI 등 후속 검토 가능
 
 ---
 
