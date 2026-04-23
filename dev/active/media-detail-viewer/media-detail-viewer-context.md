@@ -95,12 +95,19 @@
 - 최신 커밋 `5d753c6`에서 iOS 26 미만 하단 toolbar 배치를 `ToolbarItem(.bottomBar)` + `ToolbarItemGroup(.status)` + `ToolbarItem(.bottomBar)` 형태로 다시 조정했고, 사용자 확인 기준 의도한 레이아웃이 맞음
 - 현재 `MediaDetailView`의 상세정보 표시는 `showsDetailsPanel` 불리언과 `MediaDetailsPanel` overlay 조합으로 구현되어 있음
 - 이 구조는 기술적으로는 modal sheet가 아니지만, 화면 하단에 별도 레이어가 올라오는 인상이 강해서 iOS 기본 사진 앱의 "같은 화면 안에서 아래 내용이 이어지는" 감각과는 차이가 남
+- 2026-04-24 후속 구현에서 상단 title은 더 이상 generic placeholder에서 시작하지 않고, `PHAsset.location` 존재 여부를 즉시 반영한 provisional summary로 시작하도록 바뀜
+- 즉, 위치가 있는 자산은 첫 진입부터 `위치 확인 중 / 날짜+시간` 2줄 구조를 유지하고, 이후 실제 위치 문자열로 치환되어 title 재배치를 줄이는 방향으로 보정됨
+- 같은 후속 구현에서 상세 정보 표현은 `bottom overlay panel`에서 `ScrollView + LazyVStack + scrollPosition` 기반 integrated scroll surface로 1차 전환됨
+- 현재는 media pager가 상단 full-height section, metadata가 하단 section으로 이어지고, info 버튼/위로 스와이프가 모두 동일한 details anchor로 이동하도록 통합됨
+- 이 변경으로 상단/하단 toolbar는 details 노출 중에도 화면 chrome으로 남고, 상세정보가 별도 presentation layer가 아니라 content layer로 배치되는 방향이 코드에 반영됨
 - 현재 MediaDetail 핵심 파일 길이:
   - `PHOU/Presentation/MediaDetail/MediaDetailView.swift`: 456줄
   - `PHOU/Presentation/MediaDetail/MediaDetailAssetLoader.swift`: 340줄
   - `PHOU/Presentation/MediaDetail/MediaDetailPhotoKitBridge.swift`: 260줄
   - `PHOU/Presentation/MediaDetail/MediaDetailUIKit.swift`: 243줄
-- 다음 단계의 핵심은 구조 분리 자체보다 편집 범위 결정과 남은 metadata / UX 검증 정리임
+- 다만 이번 후속 구현은 현재 세션에서 code change까지만 반영됐고, compile/runtime verification은 샌드박스 네트워크 제한 때문에 아직 남아 있음
+- 특히 unrestricted build 승인 전 기준으로는 model harness(`MediaAssetDetails.provisionalTitleTexts`)만 red-green 확인됐고, Xcode build는 package dependency checkout 단계에서 막힌 상태임
+- 다음 단계의 핵심은 구조 분리 자체보다 남은 compile/runtime 검증, toolbar 경고 재현 여부, scroll gesture 체감 확인임
 
 즉, 현재 구현은 "재사용 가능한 사진/동영상 통합 뷰어"의 첫 버전까지는 도달해 있습니다.
 
