@@ -13,6 +13,10 @@
 
 현재는 iOS 최소 버전이 18.0 이상으로 올라가면서, 상세 진입 전환도 시스템 zoom transition을 활용하는 방향으로 범위가 확장되었습니다. 또한 그리드 썸네일 쪽은 체감 성능 개선을 위해 실제 셀 크기 기반 요청과 asset 재조회 감소를 반영합니다.
 
+이번 세션에서는 상세 뷰를 "몰입형 미디어 레이어 + 정보 chrome" 구조로 확장해, 단일 탭 배경 토글, 더블 탭 줌, 상하단 액션 바, 현재 asset 메타데이터 표시까지 같은 흐름에서 정리합니다. 지연 완화는 모든 페이지를 동시에 고해상도 로딩하던 기존 방식 대신 현재/인접 페이지 중심 로딩으로 보정합니다.
+
+추가 사용자 피드백으로 scope가 다시 조정되었습니다. 상세 뷰는 iPhone 기본 사진 앱에 더 가깝게 다듬어야 하며, 현재 커스텀 capsule/circle chrome은 기본 SwiftUI toolbar/button/sheet 중심으로 단순화해야 합니다. 또한 최초 진입 시 사진이 Y축 중앙에 오지 않는 버그는 아직 미해결로 다시 열어야 하고, 위치/날짜 표기 규칙과 상세정보 시트 범위도 확대해야 합니다. 편집 기능은 공개 시스템 사진 편집 UI를 앱 내부에서 직접 띄우는 방향이 아니라, 필요 시 crop-only 커스텀 편집으로 축소하는 쪽으로 재정의합니다.
+
 ---
 
 ## Current State Analysis
@@ -31,21 +35,31 @@
 
 | 영역 | 현재 상태 | 영향 |
 |------|-----------|------|
-| 상세 미디어 화면 | ❌ 미구현 | 탭 후 확대 보기/재생 경험 없음 |
-| 셀 탭 액션 | ❌ 미구현 | `GalleryView`, `AlbumPhotoGridView` 그리드 셀이 터치 반응 없음 |
-| 갤러리 fetch 범위 | ⚠️ 이미지 전용 | 범용 미디어 뷰어 첫 진입점으로 쓰기엔 비디오 누락 |
-| 고해상도 원본 로딩 | ❌ 미구현 | 썸네일만 있으므로 뷰어 품질/줌 품질 부족 |
-| 동영상 재생 | ❌ 미구현 | `AVPlayer` 기반 재생/정지/라이프사이클 처리 필요 |
+| 상세 미디어 화면 | ✅ 1차 구현 완료 | 사진/동영상 full-screen viewer는 연결됐고, 현재는 UX polish 단계 |
+| 셀 탭 액션 | ✅ 구현 완료 | `GalleryView`, `AlbumPhotoGridView` 그리드 셀이 뷰어 진입을 트리거함 |
+| 갤러리 fetch 범위 | ✅ mixed media 전환 완료 | `fetchMedia()` 기반으로 사진/동영상 혼합 자산을 표시 |
+| 고해상도 원본 로딩 | ✅ 1차 구현 완료 | detail image loader와 현재/인접 페이지 우선 로딩이 반영됨 |
+| 동영상 재생 | ✅ 1차 구현 완료 | `AVPlayerViewController` 기반 재생은 가능하지만 제어 UI는 아직 최소 수준 |
+| 사진 초기 세로 정렬 | ⚠️ 부분 해결 | 최초 진입 직후에는 Y축 중앙 정렬이 어긋나고, 확대/축소 한 번 후에야 중앙 정렬되는 재현 이슈가 남아 있음 |
+| 상세 chrome 구성 | ⚠️ 사용자 방향과 불일치 | 현재 커스텀 capsule/circle UI라서 기본 SwiftUI toolbar/button 기반으로 재정렬 필요 |
+| 위치/날짜 포맷 | ⚠️ 단순 구현 | 위치는 city 급 문자열, 날짜는 단일 문자열만 표시되어 Photos 앱 수준의 위계와 시간 정보가 부족 |
+| 상세정보 시트 | ⚠️ 축약 구현 | 날짜/위치/종류/크기/즐겨찾기만 표시하고 파일명, 촬영 기기, 소속 앨범, 상세 시간 포맷이 없음 |
+| 편집 기능 | ⚠️ 미정 | 현재는 안내 alert만 표시하며, crop-only 편집 범위를 실제로 구현할지 결정 필요 |
 
 ### 현재 구현 반영 상태
 
 - `MediaDetailFeature` / `MediaDetailView` 구현 완료
 - `GalleryFeature`는 `fetchMedia()` 기반 mixed media fetch로 전환 완료
 - `GalleryView`, `AlbumPhotoGridView`에서 동일한 full-screen 미디어 뷰어 연결 완료
-- 사진은 `UIScrollView` 기반 zoom/pan으로 전환되어 일반 사진 앱에 가까운 상호작용을 목표로 보정됨
+- 사진은 `UIScrollView` 기반 zoom/pan으로 전환되어 일반 사진 앱에 가까운 상호작용을 목표로 보정됐지만, 최초 진입 직후 Y축 중앙 정렬은 아직 완전히 해결되지 않음
 - 동영상은 `requestPlayerItem(forVideo:)` + `AVPlayerViewController` 기반으로 재생 안정성 보정 완료
 - 활성 페이지가 아닌 동영상은 pause 하도록 로직 추가
 - 썸네일은 `PHCachingImageManager` + request cancel을 유지하면서 화질을 다시 `highQualityFormat` 쪽으로 복구
+- 상단/하단 chrome은 현재 커스텀 캡슐형 UI 초안이며, 기본 SwiftUI 요소로 재구성하는 후속 작업이 필요
+- 위치 표기는 현재 reverse geocoding 결과에서 대표 문자열 하나만 고르고 있어 `수원시 - 매산로3가` 같은 상세 표기 규칙이 아직 없음
+- 중앙 타이틀은 현재 날짜 한 줄 + 위치 한 줄 구성이라, 위치/날짜/시간 2단 구조 요구사항을 충족하지 못함
+- 상세정보 시트는 현재 최소 정보만 보여주며, 파일명/촬영 기기/소속 앨범을 아직 제공하지 않음
+- 편집 버튼은 현재 "공개 시스템 사진 편집 UI를 직접 열 수 없다"는 안내 alert만 연결되어 있음
 - `xcodebuild` 빌드 검증 완료, iOS 17 시뮬레이터 앱 설치/런치 확인
 - 테스트 타깃은 아직 없어 reducer/unit test는 미구현
 
@@ -99,6 +113,23 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - 사진은 고해상도 이미지와 pinch-to-zoom을 지원합니다.
 - 동영상은 `AVPlayer` / `VideoPlayer` 기반 재생을 지원합니다.
 - 좌우 스와이프 paging UX를 구현합니다.
+- 상단 chrome은 기본 SwiftUI navigation bar / toolbar 기반으로 구성하고, 중앙에는 2줄 title 영역을 둡니다.
+- 위치가 있으면 상단 줄에 위치, 하단 줄에 날짜+시간을 표시하고, 위치가 없으면 상단 줄에 날짜, 하단 줄에 시간을 표시합니다.
+- 날짜는 현재 시점 기준 최근 1주 이내면 요일, 같은 해면 `M월 d일`, 그보다 과거면 `yyyy년 M월 d일` 규칙을 따릅니다.
+- 시간은 사용자의 24시간 표기 설정을 따라 24시 또는 `오전`/`오후` 12시간 형식으로 표시합니다.
+- 하단 액션은 커스텀 chrome 대신 기본 SwiftUI 요소를 사용해 공유, 상세정보, 편집(또는 crop) 액션을 제공합니다.
+- 단일 탭으로 배경을 `systemBackground` / black 사이에서 토글합니다.
+- 사진은 더블 탭으로 확대/축소를 지원합니다.
+- 사진은 최초 진입 직후에도 별도 상호작용 없이 Y축 중앙 정렬되어야 합니다.
+
+### Phase 3.5: 메타데이터 / 편집 범위 확장
+
+- 상세정보 시트에 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 표시할 수 있도록 데이터 소스를 확장합니다.
+- 위치는 가능한 경우 `광역/시군구 - 동/가/세부지명` 수준까지 조합하고, 부족한 경우 안전한 fallback 규칙을 둡니다.
+- 파일명은 `PHAssetResource` 기반으로 가져오는 방향을 우선 검토합니다.
+- 소속 앨범은 PhotoKit album membership 조회로 수집합니다.
+- 촬영 기기 표시는 원본 메타데이터(EXIF/TIFF/QuickTime metadata)에서 추출 가능한지 확인하고, 없는 자산은 fallback을 정의합니다.
+- 편집 기능은 `PHContentEditingController`를 앱 내부 시스템 편집기로 오해하지 않도록 범위를 분리하고, 앱 내 구현이 필요하면 crop-only 편집부터 시작합니다.
 
 ### Phase 4: 첫 소비처 연결
 
@@ -115,7 +146,11 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 
 - 시뮬레이터에서 실제 진입/스와이프/동영상 재생 수동 확인
 - 필요 시 현재 페이지 표시와 제스처 충돌 UX 미세 조정
-- 사진 세로 중앙 정렬과 inactive video pause가 실제 사용자 시나리오에서 완전히 해결됐는지 수동 검증
+- 사진 세로 중앙 정렬이 최초 진입 시에도 완전히 해결됐는지 수동 검증
+- 기본 SwiftUI chrome 전환 후 navigation/title/action 배치가 iPhone 사진 앱 흐름과 어긋나지 않는지 확인
+- 위치/날짜/시간 포맷이 한국어 로케일과 사용자의 24시간 설정에서 기대대로 보이는지 검증
+- 상세정보 시트의 파일명/기기/앨범 정보가 실제 자산에서 일관되게 채워지는지 검증
+- crop-only 편집이 도입되면 저장/취소/원본 보존 정책을 추가 검증
 - 갤러리 스크롤 성능이 여전히 체감 이슈면 별도 profiling/issue 분리
 - 테스트 타깃 도입 여부 판단
 
@@ -137,12 +172,29 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - iOS 18+에서는 `matchedTransitionSource` + zoom transition을 통해 셀에서 상세 뷰로 이어지는 확대 전환을 우선 적용합니다.
 - 동영상 재생 UI는 현재 브랜치에서 시스템 playback controls를 숨겨 기존 chrome 충돌만 해소하고, 커스텀 플레이어 설계/구현은 별도 후속 작업으로 분리합니다.
 
-### 3. 사진/동영상 공통 pager + 타입별 콘텐츠 분리
+### 3. chrome은 기본 SwiftUI 요소 우선
+
+- 상단/하단 액션 영역은 bespoke capsule/circle 디자인보다 기본 SwiftUI toolbar, `ToolbarItem`, `safeAreaInset`, `Button`, `Menu`, `sheet` 조합을 우선 사용합니다.
+- 현재 커스텀 chrome은 기능 검증용 초안으로 간주하고, 최종 UX 방향으로 고정하지 않습니다.
+
+### 4. 제목 포맷은 Photos 앱 유사 정책
+
+- 위치가 있으면 1행 위치, 2행 날짜+시간.
+- 위치가 없으면 1행 날짜, 2행 시간.
+- 날짜는 최근성 기준으로 요일 / `M월 d일` / `yyyy년 M월 d일`로 변환합니다.
+- 시간은 시스템 24시간 설정을 따릅니다.
+
+### 5. 편집 기능은 crop-only부터 재검토
+
+- Apple의 `PHContentEditingController`는 Photos 앱이 호스팅하는 편집 extension UI용 프로토콜이므로, 앱 내부에서 시스템 사진 편집 화면을 직접 띄우는 해법으로 보지 않습니다.
+- 앱 내 편집이 필요하면 전체 편집기를 한 번에 만들기보다 crop-only 기능부터 별도 구현합니다.
+
+### 6. 사진/동영상 공통 pager + 타입별 콘텐츠 분리
 
 - 상위 컨테이너는 paging, dismiss, chrome만 담당합니다.
 - 실제 콘텐츠는 `ImageDetailContent` / `VideoDetailContent` 성격의 분리된 View로 나누는 편이 유지보수에 유리합니다.
 
-### 4. Gallery fetch 범위 확장 가능성
+### 7. Gallery fetch 범위 확장 가능성
 
 - 현재 `fetchPhotos()`는 `.image` 전용입니다.
 - 이 이슈의 범위를 엄밀히 지키려면 Gallery 첫 적용 시점에 전체 media fetch로 확장하거나, 별도 `fetchMedia()` API를 도입해야 합니다.
@@ -162,6 +214,13 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 | 확대 전환이 상세 뷰 내 paging과 함께 동작할 때 dismiss source가 바뀔 수 있음 | 중간 | zoom source는 현재 `currentIndex` 기준 asset id를 사용하고, off-screen 셀인 경우 시스템 fallback을 허용 |
 | 동영상 playback controls를 숨긴 상태라 현재 브랜치에서는 재생 제어가 부족함 | 높음 | 커스텀 비디오 플레이어를 별도 Issue로 분리하고 현재는 겹침 제거만 반영 |
 | 핀치 기반 열 수 변경 시 썸네일 재요청이 빈번해질 수 있음 | 중간 | 실제 셀 크기 기반 요청으로 정확도를 높이고, preheat는 후속 profiling 범위로 유지 |
+| PhotoKit request cancel 시 continuation leak으로 런타임 경고가 날 수 있음 | 높음 | 취소/에러 경로에서도 `nil`로 반드시 resume 되는 래퍼 사용 |
+| 전체 페이지가 동시에 고비용 로딩을 시작하면 초기 진입/스와이프가 무거워짐 | 높음 | 현재 페이지와 인접 페이지만 우선 로드하고 캐시 재사용 |
+| 위치 문자열 reverse geocoding이 느릴 수 있음 | 중간 | 좌표 fallback과 캐시를 두고, top bar는 placeholder에서 점진 업데이트 |
+| 지오코딩 결과가 지역마다 다른 깊이로 내려와 세부 위치 문자열 품질이 들쭉날쭉할 수 있음 | 높음 | `administrativeArea/locality/subLocality/name/thoroughfare` 조합 규칙과 중복 제거 규칙을 명시 |
+| 촬영 기기 메타데이터가 편집본, 다운로드본, 일부 비디오에서 비어 있을 수 있음 | 중간 | 메타데이터 추출 실패 시 "정보 없음" fallback을 허용하고 UX에 반영 |
+| 소속 앨범 조회가 많아지면 상세정보 시트 진입 시 지연이 생길 수 있음 | 중간 | 현재 asset 기준 필요한 시점에만 조회하고 결과 캐시를 검토 |
+| 사용자의 24시간 설정 / 한국어 표기 규칙이 formatter 구현과 어긋날 수 있음 | 중간 | `Date.FormatStyle` 또는 locale-aware formatter를 사용하고 실기기/시뮬레이터 검증 |
 
 ---
 
@@ -177,4 +236,13 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - [x] 갤러리/앨범 그리드에서 핀치로 열 수를 2~6 범위에서 조절할 수 있음
 - [x] 썸네일 요청이 실제 셀 크기를 기준으로 이뤄짐
 - [x] 썸네일 로딩 시 asset 재조회 감소가 반영됨
+- [x] 사진 더블 탭 확대/축소가 코드상 연결됨
+- [x] 상세 뷰 배경이 탭으로 `systemBackground` / black 전환 가능함
+- [x] 상단/하단 chrome 초안이 현재 asset 메타데이터와 액션을 표시함
+- [ ] 최초 진입 직후 사진이 별도 확대/축소 상호작용 없이도 Y축 중앙 정렬됨
+- [ ] 상단/하단 chrome이 커스텀 capsule/circle 대신 기본 SwiftUI 요소로 정리됨
+- [ ] 위치 표기가 가능한 경우 `시/도 - 동/가/세부지명` 수준까지 더 자세히 표시됨
+- [ ] 중앙 타이틀이 위치/날짜/시간을 Photos 앱 유사 규칙으로 2줄 표시함
+- [ ] 상세정보 시트가 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 표시함
+- [ ] 편집 액션 정책이 확정되고 필요 시 crop-only 편집이 동작함
 - [ ] 진입/종료 및 mixed media 전환이 시뮬레이터에서 확인됨
