@@ -97,6 +97,9 @@ struct AlbumView: View {
 
                 Spacer()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .padding(.vertical, 4)
         }
         .buttonStyle(.plain)
     }
