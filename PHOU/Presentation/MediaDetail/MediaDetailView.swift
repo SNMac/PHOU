@@ -48,6 +48,7 @@ struct MediaDetailView: View {
             .task(id: currentAssetID) {
                 await refreshCurrentDetails()
             }
+            .interactiveDismissDisabled(showsDetailsPanel)
             .sheet(isPresented: shareSheetBinding) {
                 ShareSheetView(activityItems: shareItems)
             }
@@ -386,7 +387,7 @@ struct MediaDetailView: View {
         Button {
             presentInfo()
         } label: {
-            Image(systemName: "info.circle")
+            Image(systemName: showsDetailsPanel ? "info.circle.fill" : "info.circle")
         }
     }
 

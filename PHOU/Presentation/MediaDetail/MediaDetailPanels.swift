@@ -17,9 +17,9 @@ struct MediaDetailsPanel: View {
         VStack(spacing: 0) {
             Capsule()
                 .fill(Color.secondary.opacity(0.35))
-                .frame(width: 36, height: 5)
-                .padding(.top, 10)
-                .padding(.bottom, 16)
+                .frame(width: 48, height: 5)
+                .padding(.top, 12)
+                .padding(.bottom, 14)
 
             if let details {
                 ScrollView(showsIndicators: false) {
@@ -33,13 +33,11 @@ struct MediaDetailsPanel: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: layout.panelHeight, alignment: .top)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .background(Color(uiColor: .systemBackground))
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(Color.white.opacity(0.12))
+                .fill(Color.secondary.opacity(0.16))
                 .frame(height: 0.5)
-                .padding(.top, 54)
         }
         .offset(y: isPresented ? 0 : layout.panelHiddenOffset)
         .opacity(isPresented ? 1 : 0.001)
@@ -113,7 +111,7 @@ struct MediaDetailLayout {
     }
 
     var mediaLift: CGFloat {
-        min(panelHeight * 0.22, 88)
+        min(max(panelHeight * 0.62, 180), containerSize.height * 0.34)
     }
 }
 
