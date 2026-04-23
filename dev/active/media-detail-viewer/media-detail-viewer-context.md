@@ -84,6 +84,8 @@
 - 배경은 기본 `systemBackground`이고 단일 탭으로 black immersive background를 토글 가능
 - 사진은 `UIScrollView` 레벨의 double-tap zoom을 추가
 - `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build`는 이 상태로 재성공함
+- 다만 가장 최근 세션 기준으로는 위 명령이 더 이상 재현되지 않았고, project에 공유 scheme `PHOU`가 없어 동일 명령으로는 빌드 검증이 실패함
+- `xcodebuild -quiet -project PHOU.xcodeproj -target PHOU build`로 우회 검증을 시도했지만, Swift package dependency 해석 중 `ConcurrencyExtras`, `IssueReporting` 모듈을 찾지 못해 최신 수정분의 compile verification은 완료하지 못함
 
 즉, 현재 구현은 "재사용 가능한 사진/동영상 통합 뷰어"의 첫 버전까지는 도달해 있습니다.
 
@@ -188,6 +190,11 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 이번 세션에서는 iPhone 13 mini 레이아웃 문제를 줄이기 위해 `MediaDetailLayout`의 chrome reserve를 낮추고, `ZoomableImageView`가 requested viewport 대신 실제 `UIScrollView.bounds`를 기준으로 reset/centering 하도록 보정함
 - 하지만 user report 기준으로 레이아웃 문제는 여전히 해결되지 않았고, runtime 중 `Adding 'UIKitToolbar' as a subview of UIHostingController.view is not supported...` 경고가 새로 관찰됨
 - runtime 중 함께 관찰된 `Error returned from daemon: Error Domain=com.apple.accounts Code=7 "(null)"` 및 `CMPhotoJFIFUtilities err=-17102` 로그는 현재 코드 변경과 직접 연관인지 불명확함
+- 가장 최근 세션에서는 세로 사진이 normal 모드에서 immersive보다 더 작게 보이는 문제를 줄이기 위해 `MediaDetailLayout.viewportSize`가 toolbar reserve를 빼지 않고 전체 container 크기를 쓰도록 다시 단순화함
+- 가장 최근 세션에서는 iOS 18에서 하단 toolbar 아이템이 왼쪽으로 몰리는 문제를 우회하기 위해, iOS 18 경로만 `legacyBottomToolbarRow`라는 단일 full-width `HStack`으로 share / center group / delete를 직접 배치하도록 조정함
+- 가장 최근 세션에서는 favorite 버튼의 기본 검정 tint를 제거하고, non-favorite는 accent color, favorite는 pink tint가 되도록 보정함
+- 가장 최근 세션에서는 동영상 레터박스를 줄이기 위해 `AVPlayerViewController.videoGravity`를 `.resizeAspectFill`로 바꾸고 controller view에 `clipsToBounds`를 추가함
+- 가장 최근 세션에서는 실기기에서 라이브러리 규모가 큰 경우 상세 뷰 진입/전환이 느려질 수 있다는 가설 하에, `MediaDetailFeature.State`의 `Equatable` 비교를 전체 `items` 배열 대신 현재 index/current asset snapshot 중심으로 줄이는 최적화를 추가함
 
 ### 5. 이번 사용자 피드백으로 scope가 다시 바뀜
 
@@ -223,6 +230,12 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
   - 최신 수정: overlay 상단/하단 chrome 제거 후 `ToolbarItem`/`ToolbarItemGroup` 기반 system toolbar로 재전환
   - 최신 수정: iOS 26에서 `ToolbarSpacer`와 `.sharedBackgroundVisibility(.hidden)`를 써서 Liquid Glass grouping을 실험
   - 최신 수정: viewport width를 safe area 기준으로 다시 계산하고, zoom reset은 실제 scroll view bounds를 기준으로 맞추도록 변경
+  - 최신 수정: portrait photo가 normal/immersive에서 같은 fit size를 갖도록 viewport reserve 계산 제거
+  - 최신 수정: iOS 18 경로에 한해 하단 toolbar를 single-row `HStack`으로 재배치
+  - 최신 수정: favorite 버튼 tint 보정
+  - 최신 수정: video gravity를 `.resizeAspectFill`로 바꿔 letterbox 제거 시도
+- `PHOU/Presentation/MediaDetail/MediaDetailFeature.swift`
+  - 최신 수정: 대규모 라이브러리에서 상세 뷰 state 비교 비용을 줄이기 위해 `Equatable`을 current item 중심으로 축소
 - `PHOU/Presentation/MediaDetail/MediaDetailSupport.swift`
   - PhotoKit request safety 래퍼 추가
   - detail image / player item / metadata / share item 로딩 공용화
@@ -254,10 +267,18 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 사용자 확인 기준으로 다음 두 증상은 아직 미해결 상태:
   - normal/immersive 전환 시 사진 여백과 상단 spacing이 기대와 다름
   - iPhone 13 mini에서 상세 뷰 레이아웃이 더 쉽게 깨짐
+- 사용자 최신 피드백 기준 추가 재검증 필요 항목:
+  - 세로 사진은 normal/immersive가 사실상 같은 크기로 보여야 함
+  - iOS 18 하단 toolbar는 왼쪽-가운데-오른쪽 3분 배치가 안정적으로 나와야 함
+  - 실기기에서만 상세 뷰 진입/사진 간 전환/normal↔immersive 전환/dismiss가 심하게 느림
+  - 동영상 letterbox 제거가 실제 기기에서 충분한지 미확인
 - system toolbar 전환 후 runtime 경고:
   - `Adding 'UIKitToolbar' as a subview of UIHostingController.view is not supported and may result in a broken view hierarchy.`
 - 위 경고는 `fullScreenCover`로 띄운 SwiftUI 상세 뷰 내부의 toolbar 구성과 연관 가능성이 높아 보이지만, 아직 재현 조건을 분리해 확인하지 못함
 - `com.apple.accounts Code=7` 및 `CMPhotoJFIFUtilities err=-17102` 로그는 시스템/자산 레벨 노이즈일 가능성이 있으나, 아직 근거가 부족하므로 원인 미상으로 보존해야 함
+- 최신 세션의 검증 caveat:
+  - 공유 scheme `PHOU`가 project 안에 없어 기존 build 명령이 실패함
+  - target build로 우회해도 SPM dependency (`ConcurrencyExtras`, `IssueReporting`) 해석 오류로 막혀 최신 수정분의 compile verification을 확인하지 못함
 
 ---
 
@@ -276,8 +297,9 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 ## 다음 즉시 작업
 
 1. `UIKitToolbar` hierarchy 경고가 어떤 presentation 조합에서 나는지 재현 조건을 좁히기
-2. iPhone 13 mini에서 toolbar 전환 후 상단 spacing / 사진 여백이 실제로 어떻게 보이는지 수동 확인
-3. system toolbar 유지가 어렵다면 overlay chrome 복귀 또는 hybrid 구조를 검토
-4. 사진/동영상/줌 상태에서 inline 패널 drag가 pager와 충돌하지 않는지 확인
-5. 상세 위치/파일명/기기/앨범 정보가 실제 다양한 자산에서 어떤 품질로 보이는지 샘플 검증
+2. 세로 사진이 normal/immersive에서 같은 fit size를 유지하는지 실기기와 작은 시뮬레이터에서 수동 확인
+3. iOS 18 하단 toolbar의 3분 배치가 의도대로 나오는지 확인
+4. 실기기 지연이 라이브러리 규모, TCA state diff, metadata 로딩 중 어디에서 오는지 profiling/가설 검증
+5. system toolbar 유지가 어렵다면 overlay chrome 복귀 또는 hybrid 구조를 검토
+6. 사진/동영상/줌 상태에서 inline 패널 drag가 pager와 충돌하지 않는지 확인
 5. 편집 액션 범위를 crop-only로 확정할지 판단하고, 확정 시 UI/저장 경로를 설계

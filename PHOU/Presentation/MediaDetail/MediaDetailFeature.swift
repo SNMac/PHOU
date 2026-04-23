@@ -23,6 +23,21 @@ struct MediaDetailFeature {
             self.items = items
             self.currentIndex = min(max(currentIndex, 0), max(items.count - 1, 0))
         }
+
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.id == rhs.id
+                && lhs.currentIndex == rhs.currentIndex
+                && lhs.userAlbums == rhs.userAlbums
+                && lhs.isAlbumPickerPresented == rhs.isAlbumPickerPresented
+                && lhs.noticeMessage == rhs.noticeMessage
+                && lhs.items.count == rhs.items.count
+                && lhs.currentAssetSnapshot == rhs.currentAssetSnapshot
+        }
+
+        private var currentAssetSnapshot: PhotoAsset? {
+            guard items.indices.contains(currentIndex) else { return nil }
+            return items[currentIndex]
+        }
     }
 
     enum Action {

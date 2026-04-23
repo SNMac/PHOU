@@ -299,14 +299,8 @@ struct MediaDetailView: View {
                 shareToolbarButton
             }
 
-            ToolbarItemGroup(placement: .bottomBar) {
-                favoriteToolbarButton
-                infoToolbarButton
-                cropToolbarButton
-            }
-
             ToolbarItem(placement: .bottomBar) {
-                deleteToolbarButton
+                legacyBottomToolbarRow
             }
         }
     }
@@ -377,8 +371,8 @@ struct MediaDetailView: View {
             store.send(.view(.favoriteTapped))
         } label: {
             Image(systemName: (currentAsset?.isFavorite ?? false) ? "heart.fill" : "heart")
-                .foregroundStyle((currentAsset?.isFavorite ?? false) ? .pink : .primary)
         }
+        .tint((currentAsset?.isFavorite ?? false) ? .pink : .accentColor)
     }
 
     private var infoToolbarButton: some View {
@@ -404,6 +398,25 @@ struct MediaDetailView: View {
             Image(systemName: "trash")
         }
         .disabled(currentAsset == nil)
+    }
+
+    private var legacyBottomToolbarRow: some View {
+        HStack(spacing: 16) {
+            shareToolbarButton
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 24) {
+                favoriteToolbarButton
+                infoToolbarButton
+                cropToolbarButton
+            }
+
+            Spacer(minLength: 0)
+
+            deleteToolbarButton
+        }
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -648,8 +661,9 @@ private struct FillWidthPlayerView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
-        controller.videoGravity = .resizeAspect
+        controller.videoGravity = .resizeAspectFill
         controller.view.backgroundColor = .black
+        controller.view.clipsToBounds = true
         controller.showsPlaybackControls = false
         return controller
     }
@@ -940,22 +954,11 @@ private struct MediaDetailLayout {
     let usesImmersiveBackground: Bool
     let showsDetailsPanel: Bool
 
-    private let topChromeReserve: CGFloat = 20
-    private let bottomChromeReserve: CGFloat = 28
-
     var viewportSize: CGSize {
-        guard !usesImmersiveBackground else { return containerSize }
-
-        let panelAdjustment = showsDetailsPanel ? 36 : 0
-        let reservedHeight = safeAreaInsets.top
-            + safeAreaInsets.bottom
-            + topChromeReserve
-            + bottomChromeReserve
-            + CGFloat(panelAdjustment)
-        let availableHeight = containerSize.height - reservedHeight
-        let height = max(availableHeight, 1)
-        let width = max(containerSize.width - safeAreaInsets.leading - safeAreaInsets.trailing, 1)
-        return CGSize(width: width, height: height)
+        CGSize(
+            width: max(containerSize.width, 1),
+            height: max(containerSize.height, 1)
+        )
     }
 
     var panelHeight: CGFloat {
