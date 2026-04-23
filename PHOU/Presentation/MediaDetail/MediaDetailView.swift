@@ -298,17 +298,17 @@ struct MediaDetailView: View {
                 deleteToolbarButton
             }
         } else {
-            ToolbarItemGroup(placement: .bottomBar) {
+            ToolbarItem(placement: .bottomBar) {
                 shareToolbarButton
+            }
+
+            ToolbarItemGroup(placement: .status) {
                 favoriteToolbarButton
-            }
-
-            ToolbarItem(placement: .status) {
                 infoToolbarButton
+                cropToolbarButton
             }
 
-            ToolbarItemGroup(placement: .bottomBar) {
-                cropToolbarButton
+            ToolbarItem(placement: .bottomBar) {
                 deleteToolbarButton
             }
         }
