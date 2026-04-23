@@ -139,7 +139,11 @@ struct MediaDetailView: View {
                 .toolbarTitleDisplayMode(.inline)
                 .navigationBarBackButtonHidden()
                 .onChange(of: currentAssetID) { _, _ in
-                    showsDetailsPanel = false
+                    if let currentAsset {
+                        currentDetails = MediaDetailAssetLoader.provisionalSummaryDetails(for: currentAsset)
+                    } else {
+                        currentDetails = nil
+                    }
                 }
                 .onChange(of: usesImmersiveBackground) { _, isImmersive in
                     if isImmersive {

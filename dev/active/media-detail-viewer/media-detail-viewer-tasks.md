@@ -64,6 +64,8 @@
   - 수용 기준: system `ToolbarItem` 유지 또는 overlay/safeAreaInset fallback 중 하나로 기준을 확정하고, `UIKitToolbar` 경고와 UX를 함께 검증함
 - [x] **3-16** 상단 principal title metadata 안정화
   - 수용 기준: 상세 진입 직후 위치/날짜 제목이 placeholder에서 실데이터로 바뀌더라도 폭/줄배치가 눈에 띄게 흔들리지 않음
+- [x] **3-17** panel open 상태 paging 동기화
+  - 수용 기준: 상세정보 시트가 열린 채로 좌우 paging 해도 panel은 유지되고, 내부 정보가 새 current asset 기준으로 즉시 갱신됨
 
 ---
 
@@ -115,6 +117,8 @@
   - 메모: 시트가 올라오며 사진도 함께 이동하는 상태에서 placeholder -> 실데이터 전환이 어색하지 않은지 확인해야 함
 - [ ] **5-5-q-2** 상단 title metadata 전환 체감 검증
   - 메모: 날짜만 먼저 보였다가 위치가 붙는 동안 principal title이 버벅이거나 줄이 바뀌는지 실제 기기에서 확인해야 함
+- [ ] **5-5-q-3** panel open 상태 paging 메타데이터 갱신 검증
+  - 메모: panel을 연 채로 옆 미디어로 넘겼을 때 이전 asset 정보가 남지 않고 새 asset 정보로 자연스럽게 바뀌어야 함
 - [ ] **5-5-r** 편집 액션 정책 검증
   - 메모: crop-only 구현 시 저장/취소 흐름, 미구현 시 버튼 정책을 명확히 해야 함
 - [ ] **5-5-s** `UIKitToolbar` runtime 경고 원인 분리
@@ -137,6 +141,8 @@
   - 메모: favorite 버튼 기본 tint를 accent color로 보정했고, video는 `AVPlayerLayer + .resizeAspect`로 바꿨지만 실제 기기에서 색상/크롭/letterbox가 기대와 맞는지 확인이 필요함
 - [ ] **5-5-y** 실기기 지연 완화 효과 확인
   - 메모: `MediaDetailFeature.State`의 `Equatable` 비교를 current item 중심으로 축소했고, `AVPlayerLayer` 경량화도 반영했으므로 실기기에서 진입/전환/dismiss 지연이 얼마나 줄었는지 확인이 남아 있음. 다만 하단 toolbar는 사용자 의도에 따라 유지
+- [ ] **5-5-y-1** `PHAssetOriginalMetadataProperties` 경고 재조사
+  - 메모: `Missing prefetched properties for PHAssetOriginalMetadataProperties ... Fetching on demand on the main queue` 로그가 detached/caching 시도 이후에도 계속 재현됨. `requestImageDataAndOrientation` 또는 `PHAsset` metadata access 자체가 fault를 유발하는지 분리 확인 필요
 - [x] **5-5-z** 최신 빌드 검증 경로 복구
   - 메모: 최신 사용자 확인 기준으로 리팩토링 후 빌드와 실행이 모두 정상 동작함. 이 턴에서는 동일 경로를 재실행하지 않았으므로 증거 출처는 사용자 확인임.
 - [ ] **5-6** iPad 레이아웃/회전에서 기본 동작 이상 없는지 확인
@@ -201,3 +207,5 @@
 - [x] `889fc99` `fix: #6 - 상세 제목 메타데이터 전환 안정화`
 - [x] `c30f2d3` `feat: #6 - 상세 정보 스크롤 surface 전환`
 - [x] `9f9bc5c` `fix: #6 - 상세 정보 시트와 사진 동반 이동 복원`
+- [x] `4935e6e` `fix: #6 - 상세 정보 시트 외형과 제스처 보정`
+- [x] `eb66936` `fix: #6 - 상세 메타데이터 로딩 경고 완화`

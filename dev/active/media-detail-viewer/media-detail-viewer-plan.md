@@ -148,6 +148,7 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - `MediaDetailView`의 상세 정보 표현 모델은 `ZStack + bottom overlay panel + media lift` 구조를 유지하되, "별도 패널이 뜬다"보다 "시트가 올라오면서 사진이 함께 붙어 올라간다"는 체감에 맞춰 다듬습니다.
 - info 버튼과 upward swipe는 모두 같은 panel reveal 동작을 트리거하도록 유지합니다.
 - 세로 사진은 details reveal 전후에도 viewport 기준 중앙 정렬을 잃지 않아야 합니다.
+- panel이 열린 상태에서 horizontal paging을 해도 panel은 유지되고, 내부 메타데이터는 새 current asset 기준으로 즉시 갱신되어야 합니다. 현재 코드에는 이 동작이 반영되었습니다.
 - 상단 toolbar는 content 바깥 chrome으로 유지하고, 하단 액션도 system toolbar를 우선 유지합니다.
 - 현재 `currentDetails`의 summary/details 2단계 로딩 구조는 유지하되, summary는 첫 진입부터 title 안정화에 충분한 정보를 제공해야 하고 expanded metadata는 panel 노출 시점에 이어서 불러옵니다.
 - summary/details 2단계 로딩을 유지하더라도, 상단 principal title은 placeholder에서 실데이터로 바뀌며 폭이 흔들리지 않도록 별도 안정화 경로를 둡니다.
@@ -162,6 +163,7 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - 파일명은 `PHAssetResource` 기반으로 가져오는 방향을 우선 검토합니다.
 - 소속 앨범은 PhotoKit album membership 조회로 수집합니다.
 - 촬영 기기 표시는 원본 메타데이터(EXIF/TIFF/QuickTime metadata)에서 추출 가능한지 확인하고, 없는 자산은 fallback을 정의합니다.
+- `PHAssetOriginalMetadataProperties` 경고가 계속 남는다면, 단순 background offload를 넘어서 PhotoKit fetch/prefetch 전략 또는 기기명 추출 경로 자체를 다시 설계합니다.
 - 편집 기능은 `PHContentEditingController`를 앱 내부 시스템 편집기로 오해하지 않도록 범위를 분리하고, 앱 내 구현이 필요하면 crop-only 편집부터 시작합니다.
 
 ### Phase 4: 첫 소비처 연결
@@ -202,6 +204,7 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - `UIKitToolbar` hierarchy 경고가 현재 `bottomBar/status` 조합에서도 재현되는지, 특정 presentation 조합(`fullScreenCover`, zoom transition, nested NavigationStack)과 연결되는지 확인
 - 위치/날짜/시간 포맷이 한국어 로케일과 사용자의 24시간 설정에서 기대대로 보이는지 검증
 - 상세정보 시트의 파일명/기기/앨범 정보가 실제 자산에서 일관되게 채워지는지 검증
+- `PHAssetOriginalMetadataProperties` 경고가 실제로 어느 접근에서 발생하는지 분리하고, metadata 접근 경로를 재설계할지 판단
 - crop-only 편집이 도입되면 저장/취소/원본 보존 정책을 추가 검증
 - 갤러리 스크롤 성능이 여전히 체감 이슈면 별도 profiling/issue 분리
 - `UIKitToolbar` 경고가 여전히 남는지, 현재 구조에서 자연스럽게 사라졌는지 재확인

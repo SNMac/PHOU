@@ -101,6 +101,11 @@
 - 이후 최신 커밋 `9f9bc5c`에서 해당 시도를 되돌리고, 현재는 `showsDetailsPanel` + `MediaDetailsPanel` overlay 구조를 유지하되 "시트가 올라오면서 사진도 함께 위로 lift 되는" 방향을 기준선으로 삼고 있음
 - 즉, 현재 상세 정보 UI는 엄밀한 modal sheet도, 스크롤로 이어지는 content layer도 아니고, toolbar 위계는 유지하면서 Photos 앱처럼 붙어 올라오는 인상을 내는 custom bottom presentation에 더 가까움
 - 사용자 요청에 따라 상세 정보 내부의 `캡션 추가` UI는 제거된 상태임
+- 가장 최근 후속 수정에서 상세정보 시트의 grabber는 제거했고, 상단 radius/card 인상도 줄여 현재 외형을 잠정 기준선으로 둠
+- 같은 후속 수정에서 panel open 상태로 좌우 paging 해도 panel을 닫지 않고, `currentAssetID` 변경 시 provisional summary를 즉시 교체한 뒤 새 asset metadata를 이어서 로드하도록 보정함
+- 성능 로그 `Missing prefetched properties for PHAssetOriginalMetadataProperties ... Fetching on demand on the main queue, which may degrade performance.` 도 아직 재현됨
+- 최신 시도에서 `resolvedDeviceText`를 detached utility task + cache 경로로 옮겼지만, 해당 경고는 여전히 남아 있어 단순 호출 스레드 문제만은 아닐 가능성이 큼
+- 따라서 다음 세션에서는 "기기명 추출 시점/경로"뿐 아니라 `PHAsset` fetch 시 prefetch 가능한 속성, `requestImageDataAndOrientation` 자체의 metadata fault 유발 여부를 같이 봐야 함
 - 현재 MediaDetail 핵심 파일 길이:
   - `PHOU/Presentation/MediaDetail/MediaDetailView.swift`: 456줄
   - `PHOU/Presentation/MediaDetail/MediaDetailAssetLoader.swift`: 340줄
@@ -235,6 +240,7 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 따라서 다음 구현의 핵심은 `MediaDetailView`의 overlay panel 구조를 버리는 것이 아니라, 시트와 사진의 동반 이동감, dismiss 감도, 레이아웃 안정성을 더 Photos답게 다듬는 것임
 - 성능 이유로 늦춘 metadata 로딩 때문에 상단 위치/날짜 title이 placeholder에서 실데이터로 바뀌며 살짝 버벅이는 문제도 이번 범위에 포함해야 함
 - 특히 principal title은 "날짜만 먼저 표시 -> 위치까지 합쳐 재배치" 흐름이 눈에 띄지 않도록 초기 표시 정책과 로딩 타이밍을 다시 설계해야 함
+- `PHAssetOriginalMetadataProperties` 성능 경고는 detached task/caching 이후에도 남아 있어, 보다 근본적인 PhotoKit metadata 접근 전략 재검토가 필요함
 - 상단/하단 chrome은 커스텀 디자인 대신 기본 SwiftUI 요소를 사용해야 함
 - 편집은 `PHContentEditingController` 기반 시스템 편집 호출을 기대하지 않고, 앱 내 구현이 필요하면 crop-only부터 시작
 - 위치는 가능한 경우 `광역/시군구 - 동/가/세부지명` 수준까지 더 자세히 표시
