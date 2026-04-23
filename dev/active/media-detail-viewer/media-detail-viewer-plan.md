@@ -1,7 +1,7 @@
 # feat: 재사용 가능한 미디어 상세 뷰어 구현
 
 **GitHub Issue**: #6  
-**Last Updated**: 2026-04-24
+**Last Updated**: 2026-04-27
 
 ---
 
@@ -69,7 +69,7 @@
 - 중앙 타이틀은 위치 유무에 따라 `위치 / 날짜+시간` 또는 `날짜 / 시간` 2줄 구조를 사용함
 - 위치 표기는 `administrativeArea/locality/subLocality/thoroughfare/name` 조합 기반의 best-effort 상세 문자열로 확장됨
 - 상세정보는 이제 modal sheet 대신 inline panel 후보 구조로 전환 중이며, 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 같은 데이터 소스로 표시함
-- 촬영 기기 표시는 현재 사진 자산에서 `requestImageDataAndOrientation` + TIFF metadata 추출 기반의 best-effort 구현이며, 비디오 및 일부 자산은 `정보 없음` fallback이 남음
+- 촬영 기기 표시는 현재 사진 자산에서 `PHAssetResourceManager.requestData` + incremental ImageIO metadata probe 기반 best-effort 구현으로 전환 중이며, `CGImageSourceCreateIncremental(nil)`는 current SDK에서 non-optional 취급으로 맞춰 정리했고, 비디오 및 일부 자산은 `정보 없음` fallback이 남음
 - 편집 버튼은 현재 "공개 시스템 사진 편집 UI를 직접 열 수 없다"는 안내 alert만 연결되어 있음
 - `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build` 재성공
 - 테스트 타깃은 아직 없어 reducer/unit test는 미구현
@@ -163,7 +163,7 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - 파일명은 `PHAssetResource` 기반으로 가져오는 방향을 우선 검토합니다.
 - 소속 앨범은 PhotoKit album membership 조회로 수집합니다.
 - 촬영 기기 표시는 원본 메타데이터(EXIF/TIFF/QuickTime metadata)에서 추출 가능한지 확인하고, 없는 자산은 fallback을 정의합니다.
-- `PHAssetOriginalMetadataProperties` 경고가 계속 남는다면, 단순 background offload를 넘어서 PhotoKit fetch/prefetch 전략 또는 기기명 추출 경로 자체를 다시 설계합니다.
+- `PHAssetOriginalMetadataProperties` 경고가 계속 남는다면, 현재의 `PHAssetResourceManager` probe 이후에도 로그가 남는지 먼저 확인하고, 여전히 남을 때만 PhotoKit fetch/prefetch 전략까지 넓혀 재설계합니다.
 - 편집 기능은 `PHContentEditingController`를 앱 내부 시스템 편집기로 오해하지 않도록 범위를 분리하고, 앱 내 구현이 필요하면 crop-only 편집부터 시작합니다.
 
 ### Phase 4: 첫 소비처 연결
@@ -204,7 +204,7 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - `UIKitToolbar` hierarchy 경고가 현재 `bottomBar/status` 조합에서도 재현되는지, 특정 presentation 조합(`fullScreenCover`, zoom transition, nested NavigationStack)과 연결되는지 확인
 - 위치/날짜/시간 포맷이 한국어 로케일과 사용자의 24시간 설정에서 기대대로 보이는지 검증
 - 상세정보 시트의 파일명/기기/앨범 정보가 실제 자산에서 일관되게 채워지는지 검증
-- `PHAssetOriginalMetadataProperties` 경고가 실제로 어느 접근에서 발생하는지 분리하고, metadata 접근 경로를 재설계할지 판단
+- `PHAssetOriginalMetadataProperties` 경고가 새 resource-data probe 경로에서도 재현되는지 확인하고, 남는다면 다른 `PHAsset` metadata access 지점을 추가 분리
 - crop-only 편집이 도입되면 저장/취소/원본 보존 정책을 추가 검증
 - 갤러리 스크롤 성능이 여전히 체감 이슈면 별도 profiling/issue 분리
 - `UIKitToolbar` 경고가 여전히 남는지, 현재 구조에서 자연스럽게 사라졌는지 재확인

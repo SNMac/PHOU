@@ -1,7 +1,7 @@
 # Media Detail Viewer — 작업 체크리스트
 
 **GitHub Issue**: #6  
-**Last Updated**: 2026-04-24
+**Last Updated**: 2026-04-27
 
 ---
 
@@ -142,7 +142,8 @@
 - [ ] **5-5-y** 실기기 지연 완화 효과 확인
   - 메모: `MediaDetailFeature.State`의 `Equatable` 비교를 current item 중심으로 축소했고, `AVPlayerLayer` 경량화도 반영했으므로 실기기에서 진입/전환/dismiss 지연이 얼마나 줄었는지 확인이 남아 있음. 다만 하단 toolbar는 사용자 의도에 따라 유지
 - [ ] **5-5-y-1** `PHAssetOriginalMetadataProperties` 경고 재조사
-  - 메모: `Missing prefetched properties for PHAssetOriginalMetadataProperties ... Fetching on demand on the main queue` 로그가 detached/caching 시도 이후에도 계속 재현됨. `requestImageDataAndOrientation` 또는 `PHAsset` metadata access 자체가 fault를 유발하는지 분리 확인 필요
+  - 메모: detached/caching만으로는 로그가 사라지지 않아, 이번 세션에서 촬영 기기 추출 경로를 `requestImageDataAndOrientation`에서 `PHAssetResourceManager.requestData` + incremental metadata probe로 교체함. 다음 확인은 "이 변경 후에도 같은 로그가 남는가"에 집중
+  - 추가 메모: 구현 직후 `withCheckedContinuation` optional 반환 타입 추론, `PHPhotosError.operationCancelled` 심볼 부재, `CGImageSourceCreateIncremental(nil)` optional binding 오류를 순차적으로 수정했고 모두 같은 커밋에 amend 반영함
 - [x] **5-5-z** 최신 빌드 검증 경로 복구
   - 메모: 최신 사용자 확인 기준으로 리팩토링 후 빌드와 실행이 모두 정상 동작함. 이 턴에서는 동일 경로를 재실행하지 않았으므로 증거 출처는 사용자 확인임.
 - [ ] **5-6** iPad 레이아웃/회전에서 기본 동작 이상 없는지 확인
@@ -158,6 +159,8 @@
   - 추가 메모: 최신 세션에서는 build 자체가 막혔음. shared scheme `PHOU` 부재로 scheme build가 실패했고, target build도 SPM dependency 해석 오류로 실패해 compile verification을 남기지 못함
   - 추가 메모: 이번 세션에서는 하단 액션을 다시 `ToolbarItem` 기반으로 유지하고, video를 `AVPlayerLayer` 기반으로 단순화했지만 build verification은 여전히 scheme 부재/SPM 해석 문제로 막힘
   - 추가 메모: `xcodebuild -resolvePackageDependencies -project PHOU.xcodeproj`는 성공했지만, 직후 `-target PHOU build`는 여전히 `ConcurrencyExtras` / `IssueReporting` 모듈 해석 오류로 실패
+  - 추가 메모: 이번 세션의 metadata 경고 대응 수정 후에도 sandbox 내부 검증은 `PHOU` scheme 부재와 SwiftPM cache 쓰기 제한 때문에 막혔고, unrestricted target build 승인을 요청해 둔 상태임
+  - 추가 메모: 2026-04-27 후속 compile fix들은 파일 단위 오류 제보를 따라 수정했고, 프로젝트 전체 `xcodebuild` 재검증은 아직 다시 수행하지 못함
 
 ---
 

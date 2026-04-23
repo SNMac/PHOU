@@ -333,33 +333,55 @@ enum MediaDetailAssetLoader {
                 return "정보 없음"
             }
 
-            let options = PHImageRequestOptions()
-            options.deliveryMode = .highQualityFormat
-            options.resizeMode = .none
-            options.isNetworkAccessAllowed = false
-            options.isSynchronous = false
+            let resourceOptions = PHAssetResourceRequestOptions()
+            resourceOptions.isNetworkAccessAllowed = false
 
             guard
-                let data = await MediaDetailPhotoKitBridge.requestImageData(for: asset, options: options),
-                let source = CGImageSourceCreateWithData(data as CFData, nil),
-                let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+                let resource = preferredImageResource(for: asset),
+                let metadata = await MediaDetailPhotoKitBridge.requestImageDeviceMetadata(
+                    for: resource,
+                    options: resourceOptions
+                )
             else {
                 return "정보 없음"
             }
 
-            let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
-            let make = normalizedText(tiff?[kCGImagePropertyTIFFMake] as? String)
-            let model = normalizedText(tiff?[kCGImagePropertyTIFFModel] as? String)
-
-            if let model, let make {
-                return model.contains(make) ? model : "\(make) \(model)"
+            guard
+                let deviceText = resolvedDeviceText(from: metadata)
+            else {
+                return "정보 없음"
             }
 
-            return model ?? make ?? "정보 없음"
+            return deviceText
         }.value
 
         deviceCache.setObject(resolved as NSString, forKey: assetID as NSString)
         return resolved
+    }
+
+    private static func preferredImageResource(for asset: PHAsset) -> PHAssetResource? {
+        let resources = PHAssetResource.assetResources(for: asset)
+        return resources.first { resource in
+            switch resource.type {
+            case .fullSizePhoto, .photo:
+                return true
+            default:
+                return false
+            }
+        } ?? resources.first
+    }
+
+    private static func resolvedDeviceText(from metadata: MediaDetailPhotoKitBridge.ImageDeviceMetadata) -> String? {
+        let make = normalizedText(
+            metadata.make ?? metadata.ownerName
+        )
+        let model = normalizedText(metadata.model)
+
+        if let model, let make {
+            return model.contains(make) ? model : "\(make) \(model)"
+        }
+
+        return model ?? make
     }
 
     private static func coordinateText(for location: CLLocation) -> String {

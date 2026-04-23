@@ -1,7 +1,7 @@
 # Media Detail Viewer — 컨텍스트 및 핵심 파일
 
 **GitHub Issue**: #6  
-**Last Updated**: 2026-04-24
+**Last Updated**: 2026-04-27
 
 ---
 
@@ -106,6 +106,9 @@
 - 성능 로그 `Missing prefetched properties for PHAssetOriginalMetadataProperties ... Fetching on demand on the main queue, which may degrade performance.` 도 아직 재현됨
 - 최신 시도에서 `resolvedDeviceText`를 detached utility task + cache 경로로 옮겼지만, 해당 경고는 여전히 남아 있어 단순 호출 스레드 문제만은 아닐 가능성이 큼
 - 따라서 다음 세션에서는 "기기명 추출 시점/경로"뿐 아니라 `PHAsset` fetch 시 prefetch 가능한 속성, `requestImageDataAndOrientation` 자체의 metadata fault 유발 여부를 같이 봐야 함
+- 이번 세션에서는 root cause 후보를 `requestImageDataAndOrientation` 경로로 더 좁혔고, 상세 패널의 촬영 기기명 추출을 `PHAssetResourceManager.requestData` + incremental `CGImageSource` probe 방식으로 교체함
+- 새 경로는 TIFF/EXIF 속성이 확인되는 즉시 data request를 cancel 하도록 설계해, 원본 이미지 전체 decode 및 `PHAssetOriginalMetadataProperties` fault 가능성을 줄이는 방향임
+- 후속 컴파일 수정으로 `CGImageSourceCreateIncremental(nil)` 결과를 optional binding 하던 두 경로를 제거했고, 현재 구현은 incremental source를 non-optional로 직접 사용하는 상태임
 - 현재 MediaDetail 핵심 파일 길이:
   - `PHOU/Presentation/MediaDetail/MediaDetailView.swift`: 456줄
   - `PHOU/Presentation/MediaDetail/MediaDetailAssetLoader.swift`: 340줄
@@ -254,7 +257,9 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 확인됨: Apple Developer Documentation 기준 `PHContentEditingController`는 Photos 앱이 호스팅하는 photo editing extension UI용 프로토콜임. 즉, 우리 앱 내부에서 시스템 사진 편집 화면을 그대로 여는 해법으로 보면 안 됨.
 - 확인됨: 파일명은 `PHAssetResource.assetResources(for:)`의 `originalFilename`으로 가져올 수 있음.
 - 확인됨: 소속 앨범은 `PHAssetCollection.fetchAssetCollectionsContaining(_:with:options:)` 또는 album fetch 결과 비교로 조회 가능한 방향이 있음.
-- 확인됨: 현재 구현은 사진 자산에 대해 `requestImageDataAndOrientation` + `CGImageSourceCopyPropertiesAtIndex` + TIFF metadata(`Make`/`Model`)로 촬영 기기를 추출함.
+- 이 세션 이전 구현 기준 확인됨: 사진 자산에 대해 `requestImageDataAndOrientation` + `CGImageSourceCopyPropertiesAtIndex` + TIFF metadata(`Make`/`Model`)로 촬영 기기를 추출했음.
+- 이번 세션 반영: 해당 경로를 `PHAssetResource.assetResources(for:)` + `PHAssetResourceManager.requestData` + incremental `CGImageSourceCopyPropertiesAtIndex` probe로 교체했고, metadata가 보이면 조기 cancel 하도록 변경함.
+- 같은 후속 세션에서 `withCheckedContinuation` 타입 명시와 `PHPhotosError.operationCancelled` 제거, `CGImageSourceCreateIncremental(nil)` non-optional 처리까지 compile fix를 연달아 amend 반영함.
 - 추론: 비디오 촬영 기기명까지 안정적으로 맞추려면 QuickTime metadata 경로를 별도로 추가 검토해야 함.
 - caveat: 사용자가 첨부한 HEIC 레퍼런스 이미지는 이 환경에서 직접 렌더링하지 못해, 요청한 정보 밀도는 텍스트 설명 기준으로만 반영함.
 

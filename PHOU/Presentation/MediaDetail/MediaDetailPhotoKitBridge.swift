@@ -7,10 +7,18 @@
 
 import UIKit
 import AVFoundation
+import ImageIO
 @preconcurrency import Photos
 
 enum MediaDetailPhotoKitBridge {
     private static let imageManager = PHCachingImageManager()
+    private static let resourceManager = PHAssetResourceManager.default()
+
+    struct ImageDeviceMetadata: Sendable {
+        let make: String?
+        let model: String?
+        let ownerName: String?
+    }
 
     static func requestImage(
         for asset: PHAsset,
@@ -160,6 +168,98 @@ enum MediaDetailPhotoKitBridge {
             box.resume(nil)
         }
     }
+
+    static func requestImageDeviceMetadata(
+        for resource: PHAssetResource,
+        options: PHAssetResourceRequestOptions,
+        probeByteLimit: Int = 512 * 1024
+    ) async -> ImageDeviceMetadata? {
+        let box = ImagePropertiesContinuationBox()
+        let requestIDBox = ResourceRequestIDBox()
+        let incrementalSource = CGImageSourceCreateIncremental(nil)
+        let accumulatedData = NSMutableData()
+
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<ImageDeviceMetadata?, Never>) in
+                box.set(continuation)
+
+                let requestID = resourceManager.requestData(
+                    for: resource,
+                    options: options,
+                    dataReceivedHandler: { chunk in
+                        if box.hasResumed {
+                            return
+                        }
+
+                        accumulatedData.append(chunk)
+                        CGImageSourceUpdateData(
+                            incrementalSource,
+                            accumulatedData as CFMutableData,
+                            false
+                        )
+
+                        if let properties = CGImageSourceCopyPropertiesAtIndex(incrementalSource, 0, nil) as? [CFString: Any] {
+                            box.resume(deviceMetadata(from: properties))
+                            let requestID = requestIDBox.value
+                            if requestID != 0 {
+                                resourceManager.cancelDataRequest(requestID)
+                            }
+                            return
+                        }
+
+                        if accumulatedData.length >= probeByteLimit {
+                            box.resume(nil)
+                            let requestID = requestIDBox.value
+                            if requestID != 0 {
+                                resourceManager.cancelDataRequest(requestID)
+                            }
+                        }
+                    },
+                    completionHandler: { error in
+                        if error != nil {
+                            if box.hasResumed {
+                                return
+                            }
+                            box.resume(nil)
+                            return
+                        }
+
+                        CGImageSourceUpdateData(
+                            incrementalSource,
+                            accumulatedData as CFMutableData,
+                            true
+                        )
+                        let properties = CGImageSourceCopyPropertiesAtIndex(incrementalSource, 0, nil) as? [CFString: Any]
+                        box.resume(properties.flatMap(deviceMetadata(from:)))
+                    }
+                )
+                requestIDBox.set(requestID)
+            }
+        } onCancel: {
+            let requestID = requestIDBox.value
+            if requestID != 0 {
+                resourceManager.cancelDataRequest(requestID)
+            }
+            box.resume(nil)
+        }
+    }
+
+    private static func deviceMetadata(from properties: [CFString: Any]) -> ImageDeviceMetadata {
+        let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
+        let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any]
+
+        return ImageDeviceMetadata(
+            make: trimmedText(tiff?[kCGImagePropertyTIFFMake] as? String),
+            model: trimmedText(tiff?[kCGImagePropertyTIFFModel] as? String),
+            ownerName: trimmedText(exif?[kCGImagePropertyExifCameraOwnerName] as? String)
+        )
+    }
+
+    private static func trimmedText(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 }
 
 private final class ImageContinuationBox: @unchecked Sendable {
@@ -242,6 +342,32 @@ private final class DataContinuationBox: @unchecked Sendable {
     }
 }
 
+private final class ImagePropertiesContinuationBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<MediaDetailPhotoKitBridge.ImageDeviceMetadata?, Never>?
+
+    var hasResumed: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return continuation == nil
+    }
+
+    func set(_ continuation: CheckedContinuation<MediaDetailPhotoKitBridge.ImageDeviceMetadata?, Never>) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.continuation = continuation
+    }
+
+    func resume(_ properties: MediaDetailPhotoKitBridge.ImageDeviceMetadata?) {
+        lock.lock()
+        let continuation = self.continuation
+        self.continuation = nil
+        lock.unlock()
+
+        continuation?.resume(returning: properties)
+    }
+}
+
 private final class RequestIDBox: @unchecked Sendable {
     private let lock = NSLock()
     private var requestID: PHImageRequestID = PHInvalidImageRequestID
@@ -253,6 +379,23 @@ private final class RequestIDBox: @unchecked Sendable {
     }
 
     func set(_ requestID: PHImageRequestID) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.requestID = requestID
+    }
+}
+
+private final class ResourceRequestIDBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var requestID: PHAssetResourceDataRequestID = 0
+
+    var value: PHAssetResourceDataRequestID {
+        lock.lock()
+        defer { lock.unlock() }
+        return requestID
+    }
+
+    func set(_ requestID: PHAssetResourceDataRequestID) {
         lock.lock()
         defer { lock.unlock() }
         self.requestID = requestID
