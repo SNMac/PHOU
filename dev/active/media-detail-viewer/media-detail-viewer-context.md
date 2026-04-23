@@ -39,23 +39,17 @@
 
 즉, 앨범 상세는 이미 비디오를 포함할 수 있고, 뷰어의 첫 재사용 대상로 적합합니다.
 
-### 3. `GalleryFeature`는 현재 이미지 전용
+### 3. `GalleryFeature`는 이제 mixed media fetch로 전환됨
 
-`PhotoLibraryClient.fetchPhotos()` 는 현재:
+초기 문서 시점에는 `fetchPhotos()`가 이미지 전용이라 갤러리 쪽이 mixed media 목표와 어긋나는 상태였음.
 
-```swift
-let result = PHAsset.fetchAssets(with: .image, options: options)
-```
+현재는 `PhotoLibraryClient.fetchMedia()`가 추가되었고, `GalleryFeature`가 이를 사용하도록 전환되어 갤러리도 사진/동영상 혼합 자산을 기준으로 뷰어를 열 수 있음.
 
-형태라서 비디오를 가져오지 않습니다.
+### 4. 그리드 셀은 현재 탭 액션 및 비디오 배지를 가짐
 
-이 이슈의 목표가 "앱 전역 재사용 가능한 사진/동영상 뷰어"라면, `Gallery` 쪽 진입 데이터도 mixed media 목표와 맞추는지 초기에 정해야 합니다.
-
-### 4. 그리드 셀은 아직 탭 액션이 없음
-
-`GalleryView`, `AlbumPhotoGridView` 모두 `LazyVGrid` 내부에서 `PhotoThumbnailView`를 직접 `overlay`하고 있으며, `Button` 또는 탭 gesture가 없습니다.
-
-즉, 뷰어 연결 작업은 상태 추가뿐 아니라 셀 hit target 설계도 포함합니다.
+- `GalleryView`, `AlbumPhotoGridView` 모두 셀 전체를 `Button`으로 감싸고 `mediaTapped` 액션을 보냄
+- 비디오 셀에는 우하단 `video.fill` 배지를 표시
+- presentation은 두 화면 모두 동일하게 `fullScreenCover(item: $store.scope(...))` 기반
 
 ### 5. 썸네일 로딩에는 이미 PhotoKit async 래핑 패턴이 있음
 
@@ -72,6 +66,7 @@ let result = PHAsset.fetchAssets(with: .image, options: options)
 - `GalleryView`, `AlbumPhotoGridView`는 셀 탭 시 동일 뷰어를 띄움
 - 그리드 셀의 비디오에는 우하단 `video.fill` 배지 표시
 - `PhotoLibraryClient.fetchMedia()` 추가로 갤러리 전체가 mixed media fetch를 사용
+- `MediaDetailView`는 최근 수정으로 사진 정렬/zoom/pan, inactive video pause, 썸네일 품질을 추가 보정
 
 즉, 현재 구현은 "재사용 가능한 사진/동영상 통합 뷰어"의 첫 버전까지는 도달해 있습니다.
 
@@ -91,6 +86,7 @@ let result = PHAsset.fetchAssets(with: .image, options: options)
 - `@preconcurrency import Photos` 패턴은 의도적이며, 새 PhotoKit 접근 코드에도 유지하는 편이 좋습니다.
 - `PHImageRequestOptions.isSynchronous = false` 사용 시 continuation 이중 resume 방지가 필요합니다.
 - `.cornerRadius(_:)` 대신 `.clipShape(RoundedRectangle(cornerRadius:))` 사용 규칙을 유지합니다.
+- iOS 17 타깃에서는 SwiftUI 공식 `matchedTransitionSource` / `navigationTransition(.zoom(...))`를 사용할 수 없습니다.
 
 ---
 
@@ -146,23 +142,39 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 현재 구현 메모:
 
 - `MediaDetailView`는 `TabView` paging 기반
-- 사진은 local view state로 pinch scale을 관리
-- 동영상은 `PHImageManager.requestAVAsset` 결과에서 `AVURLAsset.url`만 추출해 `AVPlayer` 생성
-- `AVAsset` 자체를 continuation으로 넘기면 Swift 6 동시성 검사에 걸리므로 URL 추출 방식 유지
+- 사진은 pure SwiftUI `MagnificationGesture`를 버리고 `UIScrollView` 기반 `ZoomableImageView`로 전환
+- 이 변경으로 pinch 지점 기준 확대와 확대 상태의 내부 pan을 시스템 scroll/zoom 동작에 맡김
+- 동영상은 `requestAVAsset` + `VideoPlayer` 조합에서 `requestPlayerItem(forVideo:)` + `AVPlayerViewController` 래퍼로 변경
+- inactive page가 되면 `onChange(of: isActive)`에서 pause 하도록 보정
+- 썸네일은 `PHCachingImageManager` 사용, `onDisappear` cancel 유지
+- 한때 성능 보정을 위해 `fastFormat`으로 낮췄다가 화질 저하가 커서 현재는 `highQualityFormat` + `exact`로 복구
+
+### 5. 이번 세션에서 실제로 수정된 파일
+
+- `PHOU/Presentation/MediaDetail/MediaDetailView.swift`
+  - 사진 상단 정렬 문제 보정
+  - `UIScrollView` 기반 zoom/pan 도입
+  - inactive video pause 로직 추가
+  - 플레이어 로딩 경로를 `requestPlayerItem(forVideo:)`로 교체
+- `PHOU/Presentation/Components/PhotoThumbnailView.swift`
+  - caching/cancel 유지
+  - 썸네일 화질 복구
+- `dev/active/media-detail-viewer/media-detail-viewer-tasks.md`
+  - 진행 상태 메모 및 검증 현황 반영
 
 ---
 
 ## 오픈 질문
 
-- `GalleryFeature`를 mixed media로 확장할지, 아니면 이 이슈에서는 뷰어 자체 구현과 앨범 쪽 연결을 우선할지
-- 전체화면 진입을 `fullScreenCover`로 할지, push 내비게이션으로 할지
-- 뷰어 내부 크롬을 최소화할지, 상단 dismiss + 하단 메타데이터까지 포함할지
+- 현재 inactive video pause 수정이 실제 사용자 시나리오에서 충분한지
+- 갤러리 썸네일 품질 복구 후에도 스크롤 성능이 괜찮은지
+- iOS 17에서 custom zoom transition을 별도 범위로 진행할지
 
 ---
 
 ## 다음 즉시 작업
 
-1. 시뮬레이터에서 갤러리/앨범 상세 진입 및 동영상 재생 수동 검증
-2. 필요 시 paging과 pinch 제스처 충돌 UX 보정
-3. 테스트 타깃 추가 여부 결정
-4. 완료 후 tasks 문서와 close-out 정리
+1. 시뮬레이터에서 사진 세로 정렬, inactive video pause, 썸네일 품질 체감 수동 검증
+2. 아직 남아 있으면 video playback 회귀 재현 조건 수집
+3. zoom transition 요구가 유지되면 별도 issue 또는 후속 범위로 분리
+4. 테스트 타깃 추가 여부 결정

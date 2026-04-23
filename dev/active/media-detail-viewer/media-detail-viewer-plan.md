@@ -37,12 +37,14 @@
 
 ### 현재 구현 반영 상태
 
-- `MediaDetailFeature` / `MediaDetailView` 초안 구현 완료
+- `MediaDetailFeature` / `MediaDetailView` 구현 완료
 - `GalleryFeature`는 `fetchMedia()` 기반 mixed media fetch로 전환 완료
 - `GalleryView`, `AlbumPhotoGridView`에서 동일한 full-screen 미디어 뷰어 연결 완료
-- 사진 pinch-to-zoom 1차 구현 완료
-- 동영상 `AVPlayer` 재생 1차 구현 완료
-- 빌드 검증 완료
+- 사진은 `UIScrollView` 기반 zoom/pan으로 전환되어 일반 사진 앱에 가까운 상호작용을 목표로 보정됨
+- 동영상은 `requestPlayerItem(forVideo:)` + `AVPlayerViewController` 기반으로 재생 안정성 보정 완료
+- 활성 페이지가 아닌 동영상은 pause 하도록 로직 추가
+- 썸네일은 `PHCachingImageManager` + request cancel을 유지하면서 화질을 다시 `highQualityFormat` 쪽으로 복구
+- `xcodebuild` 빌드 검증 완료, iOS 17 시뮬레이터 앱 설치/런치 확인
 - 테스트 타깃은 아직 없어 reducer/unit test는 미구현
 
 ---
@@ -111,6 +113,8 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 
 - 시뮬레이터에서 실제 진입/스와이프/동영상 재생 수동 확인
 - 필요 시 현재 페이지 표시와 제스처 충돌 UX 미세 조정
+- 사진 세로 중앙 정렬과 inactive video pause가 실제 사용자 시나리오에서 완전히 해결됐는지 수동 검증
+- 갤러리 스크롤 성능이 여전히 체감 이슈면 별도 profiling/issue 분리
 - 테스트 타깃 도입 여부 판단
 
 ---
@@ -127,6 +131,8 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - 이 기능은 "상세 화면"보다 "미디어 몰입 뷰어"에 가깝습니다.
 - `sheet`보다 `fullScreenCover` 또는 full-screen push가 더 자연스러울 가능성이 큽니다.
 - 다만 현재 앱 네비게이션 구조와 TCA presentation 패턴에 맞춰 최종 결정합니다.
+- 현재 구현은 `fullScreenCover` 기반입니다.
+- 셀에서 전체화면으로 확대되며 들어가는 zoom transition은 제품적으로 적합하지만, SwiftUI 공식 API는 iOS 18+라 현재 타깃(iOS 17+)에서는 커스텀 전환이 필요합니다.
 
 ### 3. 사진/동영상 공통 pager + 타입별 콘텐츠 분리
 
@@ -150,15 +156,16 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 | 동영상 player lifecycle 누수/중복 재생 | 중간 | 현재 페이지 변화 시 재생 정지 규칙 정의 |
 | PhotoKit 원본 로딩 콜백 다중 호출 | 중간 | 기존 `PhotoThumbnailView`처럼 resume guard 유지 |
 | iPad에서 full-screen UX가 과도하게 iPhone 중심 | 중간 | 초기 문서 단계부터 iPad 레이아웃 확인 항목 포함 |
+| iOS 17에서 zoom transition을 제품 기대치만큼 자연스럽게 구현하기 어려움 | 중간 | 공식 API 대신 커스텀 오버레이 전환을 별도 범위로 분리 |
 
 ---
 
 ## Success Criteria
 
-- [ ] `MediaDetailFeature` / `MediaDetailView`가 사진과 동영상을 모두 처리함
-- [ ] `GalleryView`와 `AlbumPhotoGridView`에서 같은 뷰어를 재사용함
-- [ ] 사진 pinch-to-zoom이 동작함
+- [x] `MediaDetailFeature` / `MediaDetailView`가 사진과 동영상을 모두 처리함
+- [x] `GalleryView`와 `AlbumPhotoGridView`에서 같은 뷰어를 재사용함
+- [x] 사진 pinch-to-zoom이 동작함
 - [ ] 동영상 재생이 정상 동작함
-- [ ] 좌우 스와이프로 이전/다음 미디어 이동이 가능함
-- [ ] Swift 6 strict concurrency 경고 없이 빌드됨
+- [x] 좌우 스와이프로 이전/다음 미디어 이동이 가능함
+- [x] Swift 6 strict concurrency 경고 없이 빌드됨
 - [ ] 진입/종료 및 mixed media 전환이 시뮬레이터에서 확인됨
