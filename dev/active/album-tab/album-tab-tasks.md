@@ -69,8 +69,17 @@
   - 최종 빌드: `BUILD SUCCEEDED`
 - [x] **5-2** 시뮬레이터에서 앨범 탭 동작 확인
   - 앨범 진입 및 탭 기본 동작은 확인됨
-- [ ] **5-3** 터치 영역/구분선 보정 후 앨범 셀 빈 여백 탭 및 separator 전체 폭 재확인
-- [ ] **5-4** 빈 앨범 / 권한 없음 상태 시나리오 확인
+- [x] **5-3** 터치 영역/구분선 보정 후 앨범 셀 빈 여백 탭 및 separator 전체 폭 재확인
+- [x] **5-4** 빈 앨범 / 권한 없음 상태 시나리오 확인
+
+---
+
+## Phase 6: 후속 UX 검토 (S)
+
+- [ ] **6-1** 앨범 셀 기반 zoom navigation 전환 방향 결정
+  - 검토 결과: SwiftUI 공식 `matchedTransitionSource` + `navigationTransition(.zoom(...))` 는 `iOS 18+`
+  - 현재 타깃: `iOS/iPadOS 17.0+`
+  - 선택지: 배포 타깃 상향 또는 커스텀 전환 구현
 
 ---
 
@@ -78,5 +87,5 @@
 
 - [x] 모든 구현 체크리스트 항목 완료
 - [x] `xcodebuild` 빌드 오류 및 Swift 6 concurrency 경고 없음
-- [ ] 앨범 탭 행 전체 터치 영역 및 구분선 수동 확인
+- [x] 앨범 탭 행 전체 터치 영역 및 구분선 수동 확인
 - [ ] GitHub Issue #5 close

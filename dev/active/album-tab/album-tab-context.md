@@ -122,6 +122,32 @@ AlbumView는 navigationDestination에서 `$store.scope`가 필요하므로 `@Bin
 - 썸네일 영역 앞쪽이 비어 보이지 않도록 전체 폭으로 구분선 표시
 - 기존 `List(.insetGrouped)` 스타일과 행 레이아웃은 유지
 
+### 8. Album row 기반 zoom navigation 전환 검토
+
+사용자 요구사항은 기본 push 애니메이션 대신, 앨범 행에서 확대되며 상세 그리드로 전환되는 내비게이션 애니메이션이다.
+
+SwiftUI의 공식 해법은 아래 조합이다.
+
+```swift
+.matchedTransitionSource(id: ..., in: namespace)
+.navigationTransition(.zoom(sourceID: ..., in: namespace))
+```
+
+하지만 로컬 Xcode SDK(`SwiftUI.swiftinterface`)와 Apple Developer Documentation 기준으로 이 API들은 `iOS 18.0+` 가용이다.
+
+- `navigationTransition(_:)` → `@available(iOS 18.0, *)`
+- `matchedTransitionSource(id:in:)` → `@available(iOS 18.0, *)`
+- `.zoom(sourceID:in:)` → `@available(iOS 18.0, *)`
+
+즉, 현재 프로젝트 타깃인 `iOS/iPadOS 17.0+`에서는 공식 zoom navigation transition을 바로 사용할 수 없다.
+
+대안은 두 가지다.
+
+1. **배포 타깃 상향** — iOS 18+로 올린 뒤 공식 API 사용
+2. **커스텀 전환 구현** — 오버레이/매칭 애니메이션 기반으로 비슷한 효과를 직접 구현
+
+현재는 타깃 유지가 우선이므로 미적용 상태로 유지하는 것이 안전하다.
+
 ---
 
 ## 최종 커밋 히스토리 (feature/#5-album)
@@ -143,7 +169,8 @@ e158a5b feat: #5 - coverAssetId 필드 정리 및 fetchAlbums 첫 번째 에셋 
 
 1. **터치 영역/구분선 최종 수동 테스트** — 앨범 셀의 빈 여백 탭과 separator 전체 폭 표시 재확인
 2. **빈 앨범 / 권한 없음 시나리오 확인**
-3. **PR 생성** — `feature/#5-album` → `develop` (GitHub Issue #5 close)
+3. **zoom navigation 전환 필요 시 방향 결정** — iOS 18 상향 vs 커스텀 전환
+4. **PR 생성** — `feature/#5-album` → `develop` (GitHub Issue #5 close)
 
 ---
 
