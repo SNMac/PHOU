@@ -1,12 +1,12 @@
 # Architecture Foundation — Context & Key Decisions
 
-Last Updated: 2026-04-22 (4차 세션 종료 시점)
+Last Updated: 2026-04-23
 
 ---
 
 ## 현재 상태 요약
 
-**PR #2 오픈 중** — 코드 리뷰 반영 완료, Merge 대기.
+**PR #2 머지 완료** — Architecture Foundation 작업은 메인라인에 반영되었고, 현재는 후속 기능과 UX 개선 이슈를 이어서 진행 중.
 
 ---
 
@@ -153,6 +153,12 @@ enum Action {
 - `@preconcurrency import Photos` — Swift 6 strict concurrency에서 PhotoKit Sendable 경고 억제 목적. 의도적 패턴, 제거 금지
 - `PHAuthorizationStatus` → `PhotoAuthStatus` 변환은 `PhotoLibraryClient` 내부(`init(from:)`)에서만
 
+### Mixed Media 방향성 확인
+- `PhotoAsset.MediaType`가 `image`, `video`, `unknown`을 모두 가지도록 설계된 점에서, Architecture Foundation 단계부터 mixed media 확장을 수용하는 구조였음
+- 이후 앨범 탭 구현에서 `fetchAssetsInAlbum(_:)`도 실제 `PHAsset.mediaType`을 보존하도록 보정됨
+- mixed media UI 자체(비디오 배지, 재생 시간, 필터 UI)는 아키텍처 수정 이슈가 아니라 후속 UX/표현 이슈로 분리
+- 후속 추적: GitHub Issue #8 `feat: 앨범 상세 mixed media 표시 개선`
+
 ---
 
 ## GalleryView 그리드 수정 (3차 세션)
@@ -206,8 +212,9 @@ PHImageManager.default().requestImage(...) { result, _ in
 
 ---
 
-## 다음 세션 할 일
+## 후속 추적 사항
 
-- [ ] PR #2 Merge
-- [ ] GitHub Issue #1 Close
-- [ ] 권한 거부 시나리오 테스트
+- [x] PR #2 Merge
+- [x] GitHub Issue #1 Close
+- [x] 권한 거부 시나리오 테스트
+- [ ] mixed media 표시 정책은 GitHub Issue #8에서 후속 검토

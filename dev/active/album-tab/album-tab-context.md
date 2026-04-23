@@ -1,0 +1,265 @@
+# Album Tab — 컨텍스트 및 핵심 파일
+
+**Last Updated**: 2026-04-23  
+**Status**: ✅ PR 머지 및 Issue #5 close 완료. mixed media 후속은 Issue #8로 분리됨.
+
+---
+
+## 실제 파일 경로
+
+> ⚠️ 문서의 `PHOU/Presentation/...` 경로는 실제로 `PHOU/PHOU/PHOU/Presentation/...` 입니다.  
+> 즉, 프로젝트 루트 기준 소스 파일은 모두 `PHOU/PHOU/PHOU/` 하위에 있습니다.
+
+---
+
+## 수정/생성된 파일
+
+| 파일 | 경로 | 상태 |
+|------|------|------|
+| `AlbumGroup.swift` | `PHOU/PHOU/PHOU/Domain/Entity/AlbumGroup.swift` | ✅ `coverAssetId: String?` 필드 추가 |
+| `PhotoLibraryClient.swift` | `PHOU/PHOU/PHOU/Data/Client/PhotoLibraryClient.swift` | ✅ `fetchAlbums` coverAssetId 수집 + `fetchAssetsInAlbum` 신규 추가 |
+| `AlbumFeature.swift` | `PHOU/PHOU/PHOU/Presentation/Album/AlbumFeature.swift` | ✅ 전체 구현 완료 |
+| `AlbumView.swift` | `PHOU/PHOU/PHOU/Presentation/Album/AlbumView.swift` | ✅ 섹션 List UI 구현 완료 + 행 전체 터치 영역/구분선 보정 |
+| `AlbumPhotoGridFeature.swift` | `PHOU/PHOU/PHOU/Presentation/Album/AlbumPhotoGridFeature.swift` | ✅ 신규 생성 완료 |
+| `AlbumPhotoGridView.swift` | `PHOU/PHOU/PHOU/Presentation/Album/AlbumPhotoGridView.swift` | ✅ 신규 생성 완료 |
+
+---
+
+## 핵심 구현 결정 및 트릭
+
+### 1. `@Presents` vs `@PresentationState`
+
+`@ObservableState`와 함께 사용할 때는 **반드시 `@Presents`** 를 사용해야 합니다.  
+`@PresentationState`는 `@ObservableState` 매크로와 충돌하여 컴파일 오류 발생.
+
+```swift
+// ❌ 오류 발생
+@ObservableState struct State {
+    @PresentationState var albumPhotoGrid: AlbumPhotoGridFeature.State?
+}
+
+// ✅ 올바른 패턴
+@ObservableState struct State {
+    @Presents var albumPhotoGrid: AlbumPhotoGridFeature.State?
+}
+```
+
+`ifLet` 연결 문법은 동일하게 `\.$albumPhotoGrid` 사용.
+
+### 2. `@Bindable var store` 필수
+
+`$store.scope(state:action:)` 문법을 사용하려면 `@Bindable`이 필요합니다.
+
+```swift
+// ❌ $store를 찾을 수 없음
+struct AlbumView: View {
+    let store: StoreOf<AlbumFeature>
+}
+
+// ✅ 올바른 패턴
+struct AlbumView: View {
+    @Bindable var store: StoreOf<AlbumFeature>
+}
+```
+
+GalleryView는 `$store.scope`를 사용하지 않아서 `let store`로 충분했지만,  
+AlbumView는 navigationDestination에서 `$store.scope`가 필요하므로 `@Bindable` 필수.
+
+### 3. `Foundation` import
+
+`AlbumFeature.swift`는 `ComposableArchitecture`만 import 해도 빌드되지 않습니다.  
+`error.localizedDescription` 사용을 위해 `import Foundation`이 별도로 필요합니다.
+
+### 4. `.clipShape(RoundedRectangle(cornerRadius:))` 패턴
+
+`.cornerRadius(_:)` 는 iOS 16부터 deprecated. iOS 17 타겟 프로젝트에서는 항상 아래 패턴 사용:
+
+```swift
+.clipShape(RoundedRectangle(cornerRadius: 8))
+```
+
+### 5. `fetchAssetsInAlbum` 구현
+
+`PhotoLibraryClient`에 추가된 메서드. `albumId`(= `PHAssetCollection.localIdentifier`)로 컬렉션을 찾고 `creationDate` 내림차순 정렬로 에셋을 반환합니다.
+
+### 6. Album row 터치 영역 보정
+
+시뮬레이터에서 앨범 탭 동작 자체는 확인됐지만, `AlbumView`의 앨범 행이 `.buttonStyle(.plain)` 상태에서 보이는 콘텐츠 중심으로만 터치되는 것처럼 느껴지는 문제가 있었다.
+
+이를 보정하기 위해 `albumRow(_:)`의 버튼 라벨 `HStack`에 아래를 추가했다.
+
+```swift
+.frame(maxWidth: .infinity, alignment: .leading)
+.contentShape(Rectangle())
+.padding(.vertical, 4)
+```
+
+핵심 의도는 다음과 같다.
+
+- 행의 레이아웃 폭을 리스트 가용 폭까지 넓힘
+- 투명 여백도 탭 영역으로 인식되도록 `contentShape(Rectangle())` 적용
+- 세로 히트 타깃을 약간 넉넉하게 확보
+
+즉, 썸네일이나 텍스트 위만 눌리던 느낌을 줄이고, 행 전체가 자연스럽게 탭되도록 만드는 수정이다.
+
+### 7. Album row 구분선 전체 폭 보정
+
+기본 `List` separator는 텍스트 콘텐츠 기준 inset이 들어가서, 앨범 셀 사이 구분선이 썸네일 왼쪽 영역까지 이어지지 않았다.
+
+이를 보정하기 위해 `albumRow(_:)`의 버튼에 아래를 추가했다.
+
+```swift
+.alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+.alignmentGuide(.listRowSeparatorTrailing) { dimensions in
+    dimensions.width
+}
+```
+
+핵심 의도는 다음과 같다.
+
+- row separator의 시작 위치를 리스트 행의 선두로 맞춤
+- row separator의 끝 위치도 행 전체 폭으로 확장
+- 썸네일 영역 앞쪽이 비어 보이지 않도록 전체 폭으로 구분선 표시
+- 기존 `List(.insetGrouped)` 스타일과 행 레이아웃은 유지
+
+### 8. Album row 기반 zoom navigation 전환 검토 종료
+
+사용자 요구사항은 기본 push 애니메이션 대신, 앨범 행에서 확대되며 상세 그리드로 전환되는 내비게이션 애니메이션이다.
+
+SwiftUI의 공식 해법은 아래 조합이다.
+
+```swift
+.matchedTransitionSource(id: ..., in: namespace)
+.navigationTransition(.zoom(sourceID: ..., in: namespace))
+```
+
+하지만 로컬 Xcode SDK(`SwiftUI.swiftinterface`)와 Apple Developer Documentation 기준으로 이 API들은 `iOS 18.0+` 가용이다.
+
+- `navigationTransition(_:)` → `@available(iOS 18.0, *)`
+- `matchedTransitionSource(id:in:)` → `@available(iOS 18.0, *)`
+- `.zoom(sourceID:in:)` → `@available(iOS 18.0, *)`
+
+즉, 현재 프로젝트 타깃인 `iOS/iPadOS 17.0+`에서는 공식 zoom navigation transition을 바로 사용할 수 없다.
+
+대안은 두 가지다.
+
+1. **배포 타깃 상향** — iOS 18+로 올린 뒤 공식 API 사용
+2. **커스텀 전환 구현** — 오버레이/매칭 애니메이션 기반으로 비슷한 효과를 직접 구현
+
+검토 결과, 현재 프로젝트에서는 이 기능을 진행하지 않기로 결정했다.
+
+- 공식 API는 `iOS 18+` 요구
+- 현재 타깃은 `iOS/iPadOS 17.0+`
+- 이번 기능의 핵심 범위 대비 구현/유지 비용이 큼
+
+따라서 앨범 탭은 기본 push navigation 애니메이션을 유지한다.
+
+### 9. 앨범 상세의 mixed media 의도 반영
+
+PR 리뷰에서는 `fetchAssetsInAlbum`과 앨범 커버 선택 시 이미지 전용 `predicate`를 넣어 일관성을 맞추자는 제안이 있었다.
+
+하지만 이 앱의 실제 의도는 **사진과 동영상을 모두 정리할 수 있는 앱**이므로, 앨범 상세에서 비디오를 제외하는 방향은 제품 의도와 맞지 않는다.
+
+따라서 `fetchAssetsInAlbum`에는 이미지 전용 필터를 추가하지 않고, 대신 `PHAsset.mediaType`을 실제 값 기준으로 `PhotoAsset.MediaType`에 매핑하도록 수정했다.
+
+```swift
+mediaType: mediaType(from: asset.mediaType)
+```
+
+핵심 의도는 다음과 같다.
+
+- 앨범 상세 그리드가 사진/동영상 혼합 자산을 그대로 반영
+- 데이터 모델의 `mediaType`과 실제 PhotoKit asset 타입을 일치시킴
+- 향후 비디오 배지나 mixed media UI 확장 시 기반 정보 보존
+
+현재 커버 이미지는 기존 동작대로 앨범의 최신 자산 기준을 유지한다. 즉, 최신 항목이 비디오면 비디오 썸네일이 커버가 될 수 있다.
+
+---
+
+## 최종 커밋 히스토리 (feature/#5-album)
+
+```
+41e89e3 fix: #5 - @Presents 매크로 적용 및 Foundation import, @Bindable 수정
+cb3f69a fix: #5 - AlbumView cornerRadius deprecated API 수정
+e2de10f feat: #5 - AlbumView 섹션 List UI 구현
+7c7d63a refactor: #5 - PhotoLibraryClient unused extension 제거 및 파일 헤더 복원
+9a288a9 feat: #5 - AlbumPhotoGridFeature/View 및 fetchAssetsInAlbum 구현
+1efbe95 feat: #5 - AlbumFeature 앨범 목록 fetch 로직 구현
+e158a5b feat: #5 - coverAssetId 필드 정리 및 fetchAlbums 첫 번째 에셋 ID 수집
+53b8373 feat: #5 - AlbumGroup에 coverAssetId 필드 추가
+```
+
+---
+
+## 후속 추적 사항
+
+1. **mixed media UI 후속 작업 추적** — 비디오 배지/길이 표시 등은 GitHub Issue #8에서 관리
+
+---
+
+## AlbumGroup 엔티티 최종 상태
+
+```swift
+struct AlbumGroup: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let assetCount: Int
+    let coverAssetId: String?   // 첫 번째 에셋 localIdentifier, 없으면 nil
+    let albumType: AlbumType
+
+    enum AlbumType: Equatable, Sendable {
+        case smartAlbum, userAlbum
+    }
+}
+```
+
+---
+
+## AlbumFeature 최종 구조
+
+```swift
+@Reducer
+struct AlbumFeature {
+    @ObservableState
+    struct State: Equatable {
+        var authStatus: PhotoAuthStatus = .notDetermined
+        var albums: [AlbumGroup] = []
+        var isLoading = false
+        var errorMessage: String?
+        @Presents var albumPhotoGrid: AlbumPhotoGridFeature.State?
+    }
+
+    enum Action {
+        case view(ViewAction)
+        case `internal`(InternalAction)
+        case albumPhotoGrid(PresentationAction<AlbumPhotoGridFeature.Action>)
+
+        enum ViewAction { case onAppear, retryTapped, albumTapped(AlbumGroup) }
+        enum InternalAction {
+            case authResponse(PhotoAuthStatus)
+            case albumsResponse(Result<[AlbumGroup], Error>)
+        }
+    }
+}
+```
+
+---
+
+## AlbumView 레이아웃 최종 구조
+
+```
+NavigationStack
+├── .navigationTitle("앨범")
+├── .onAppear → store.send(.view(.onAppear))
+├── .navigationDestination(item: $store.scope(state: \.albumPhotoGrid, action: \.albumPhotoGrid))
+│   └── AlbumPhotoGridView(store: gridStore)
+└── content (authStatus switch)
+    ├── .notDetermined → ProgressView
+    ├── .denied/.restricted → ContentUnavailableView (설정 열기 버튼)
+    └── .authorized/.limited
+        ├── isLoading && albums.isEmpty → ProgressView
+        └── albumList (List .insetGrouped)
+            ├── Section("시스템 앨범") [smartAlbums, 비면 미표시]
+            └── Section("나의 앨범") [userAlbums, 비면 미표시]
+                └── albumRow: Button(.plain) { HStack { 커버(60×60, clipShape) | title + count | Spacer } + contentShape(Rectangle()) } + separatorLeading(0) + separatorTrailing(fullWidth)
+```
