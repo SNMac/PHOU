@@ -1,7 +1,7 @@
 # Media Detail Viewer — 컨텍스트 및 핵심 파일
 
 **GitHub Issue**: #6  
-**Last Updated**: 2026-04-23
+**Last Updated**: 2026-04-24
 
 ---
 
@@ -18,7 +18,13 @@
 | 썸네일 컴포넌트 | `PHOU/Presentation/Components/PhotoThumbnailView.swift` |
 | 미디어 상세 Feature | `PHOU/Presentation/MediaDetail/MediaDetailFeature.swift` |
 | 미디어 상세 View | `PHOU/Presentation/MediaDetail/MediaDetailView.swift` |
-| 미디어 상세 지원 코드 | `PHOU/Presentation/MediaDetail/MediaDetailSupport.swift` |
+| 미디어 상세 모델/포맷 | `PHOU/Presentation/MediaDetail/MediaDetailModels.swift` |
+| 미디어 상세 asset loader | `PHOU/Presentation/MediaDetail/MediaDetailAssetLoader.swift` |
+| 미디어 상세 페이지 뷰 | `PHOU/Presentation/MediaDetail/MediaDetailPages.swift` |
+| 미디어 상세 패널/레이아웃 | `PHOU/Presentation/MediaDetail/MediaDetailPanels.swift` |
+| 미디어 상세 UIKit bridge | `PHOU/Presentation/MediaDetail/MediaDetailUIKit.swift` |
+| 미디어 상세 PhotoKit bridge | `PHOU/Presentation/MediaDetail/MediaDetailPhotoKitBridge.swift` |
+| 미디어 상세 공유 시트 | `PHOU/Presentation/MediaDetail/MediaDetailShareSheet.swift` |
 
 ---
 
@@ -75,7 +81,7 @@
 - 동영상은 현재 브랜치에서 시스템 playback controls를 숨겨 상세 뷰 chrome과 겹치지 않게만 정리함
 - 런타임 경고 `SWIFT TASK CONTINUATION MISUSE: loadThumbnail() leaked its continuation` 의 직접 원인은 취소된 PhotoKit request가 callback에서 return만 하고 continuation을 끝내지 않던 경로로 확인됨
 - 상세 뷰 초기 진입/페이지 전환 지연의 주요 원인은 `TabView` 안 모든 페이지가 동시에 무거운 로딩을 시작하던 구조로 판단하고, 현재/인접 페이지 우선 로딩 + 캐시 재사용으로 방향을 바꿈
-- 상세 뷰 chrome은 한 차례 상단 toolbar / 하단 `safeAreaInset` 액션 바 구조로 바뀌었지만, 최신 수정에서는 Photos 앱 레퍼런스에 더 가깝게 overlay chrome + inline info panel 구조로 다시 조정됨
+- 상세 뷰 chrome은 상단 toolbar / 하단 `safeAreaInset` / overlay chrome / system toolbar를 거쳐 왔고, 현재는 `ToolbarItem` 기반 toolbar 구성을 유지하면서 inline info panel과 함께 다듬는 중임
 - 상단 중앙 타이틀은 위치 유무에 따라 `위치 / 날짜+시간` 또는 `날짜 / 시간` 2줄 구조를 사용함
 - 위치 문자열은 `administrativeArea/locality/subLocality/thoroughfare/name` 조합 기반으로 확장되어 `수원시 - 매산로3가` 같은 표기를 시도함
 - 상세정보는 더 이상 `sheet(item:)` 기반 modal이 아니라, 위로 스와이프하거나 info 버튼으로 여는 inline panel 구조로 재설계 중
@@ -83,9 +89,15 @@
 - 편집 버튼은 현재 alert만 띄우고 있으며 crop 또는 다른 실제 편집 기능은 없음
 - 배경은 기본 `systemBackground`이고 단일 탭으로 black immersive background를 토글 가능
 - 사진은 `UIScrollView` 레벨의 double-tap zoom을 추가
-- `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build`는 이 상태로 재성공함
-- 다만 가장 최근 세션 기준으로는 위 명령이 더 이상 재현되지 않았고, project에 공유 scheme `PHOU`가 없어 동일 명령으로는 빌드 검증이 실패함
-- `xcodebuild -quiet -project PHOU.xcodeproj -target PHOU build`로 우회 검증을 시도했지만, Swift package dependency 해석 중 `ConcurrencyExtras`, `IssueReporting` 모듈을 찾지 못해 최신 수정분의 compile verification은 완료하지 못함
+- 가장 최근 리팩토링 세션에서 `MediaDetailView.swift` / `MediaDetailSupport.swift` 책임 분리를 실제로 수행함
+- 최신 사용자 확인 기준으로 리팩토링 후 빌드와 실행은 모두 정상 동작함
+- 최신 커밋 `5d753c6`에서 iOS 26 미만 하단 toolbar 배치를 `ToolbarItem(.bottomBar)` + `ToolbarItemGroup(.status)` + `ToolbarItem(.bottomBar)` 형태로 다시 조정했고, 사용자 확인 기준 의도한 레이아웃이 맞음
+- 현재 MediaDetail 핵심 파일 길이:
+  - `PHOU/Presentation/MediaDetail/MediaDetailView.swift`: 456줄
+  - `PHOU/Presentation/MediaDetail/MediaDetailAssetLoader.swift`: 340줄
+  - `PHOU/Presentation/MediaDetail/MediaDetailPhotoKitBridge.swift`: 260줄
+  - `PHOU/Presentation/MediaDetail/MediaDetailUIKit.swift`: 243줄
+- 다음 단계의 핵심은 구조 분리 자체보다 편집 범위 결정과 남은 metadata / UX 검증 정리임
 
 즉, 현재 구현은 "재사용 가능한 사진/동영상 통합 뷰어"의 첫 버전까지는 도달해 있습니다.
 
@@ -174,7 +186,7 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 현재 세션에서 local identifier 기준 `PHAsset.fetchAssets(...)` 반복 비용을 줄이기 위해 `NSCache<NSString, PHAsset>` 기반의 간단한 asset cache를 추가
 - 갤러리/앨범 그리드는 핀치 제스처로 열 수를 2~6 범위에서 동적으로 변경하도록 보정
 - iOS 18 상세 전환은 각 셀에 `matchedTransitionSource(id: asset.id, in: namespace)`를 주고, 상세 뷰는 현재 `currentIndex`의 asset id로 zoom transition source를 매칭
-- 현재 세션에서 상세 뷰 로딩/공유/메타데이터 처리를 `MediaDetailSupport.swift`로 분리해 request cancel safety, display image cache, player item load, share item 준비, 위치 reverse geocoding fallback을 한 곳에서 관리
+- 이전 세션에서 상세 뷰 로딩/공유/메타데이터 처리를 `MediaDetailSupport.swift`로 모아두었고, 이번 세션에서 그 책임을 역할별 파일로 다시 분리함
 - 상세 뷰는 현재/인접 사진 페이지만 우선 로드하고, 비디오는 active page에서만 플레이어를 준비하도록 바꿔 initial presentation/swipe 비용을 낮춤
 - 초기 사진 Y축 정렬 문제는 `UIScrollView.contentInsetAdjustmentBehavior = .never`, layout 후 centering, background-aware zoom view 갱신으로 한 차례 보정했지만 user report 기준 최초 진입 재현이 남아 있음
 - 공유는 `UIActivityViewController` sheet로 연결했고, 편집 버튼은 공개 시스템 사진 편집 API 부재를 안내하는 alert로 처리
@@ -192,10 +204,16 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - runtime 중 함께 관찰된 `Error returned from daemon: Error Domain=com.apple.accounts Code=7 "(null)"` 및 `CMPhotoJFIFUtilities err=-17102` 로그는 현재 코드 변경과 직접 연관인지 불명확함
 - 가장 최근 세션에서는 세로 사진이 normal 모드에서 immersive보다 더 작게 보이는 문제를 줄이기 위해 `MediaDetailLayout.viewportSize`가 toolbar reserve를 빼지 않고 전체 container 크기를 쓰도록 다시 단순화함
 - 가장 최근 세션에서는 사용자의 디자인 의도에 맞춰 하단 액션도 다시 `ToolbarItem` 기반으로 유지하고, iOS 18에서는 `bottomBar` + `status` placement 조합으로 `share+favorite / info / crop+delete` 3구역에 가깝게 재배치함
+- 가장 최근 세션에서는 사용자가 iOS 26 미만 배치가 의도대로 맞았다고 확인해, 하단 toolbar 레이아웃 자체는 현재 기준선으로 봐도 됨
 - 가장 최근 세션에서는 favorite 버튼의 기본 검정 tint를 제거하고, non-favorite는 accent color, favorite는 pink tint가 되도록 보정함
 - 가장 최근 세션에서는 동영상이 과하게 확대되어 보이는 문제를 줄이기 위해 `AVPlayerViewController`를 제거하고, `AVPlayerLayer.videoGravity = .resizeAspect`를 쓰는 경량 player view로 교체함
 - 가장 최근 세션에서는 실기기에서 라이브러리 규모가 큰 경우 상세 뷰 진입/전환이 느려질 수 있다는 가설 하에, `MediaDetailFeature.State`의 `Equatable` 비교를 전체 `items` 배열 대신 현재 index/current asset snapshot 중심으로 줄이는 최적화를 추가함
 - 가장 최근 세션에서는 `TabView` 콘텐츠 전체를 항상 `ignoresSafeArea()` 하도록 바꿔, normal/immersive 전환이 미디어 크기를 바꾸지 않고 배경/UI visibility만 바꾸도록 정리함
+- 가장 최근 세션에서는 위 리팩토링 방향을 실제 코드로 반영함:
+  - `MediaDetailView.swift`는 화면 조립과 state orchestration 중심으로 축소
+  - page content는 `MediaDetailPages.swift`, 패널/레이아웃은 `MediaDetailPanels.swift`, UIKit bridge는 `MediaDetailUIKit.swift`로 이동
+  - 기존 `MediaDetailSupport.swift`는 제거하고 loader/models/PhotoKit bridge/share sheet로 역할별 분리
+  - UIKit 감사는 “무조건 제거”가 아니라 “SwiftUI가 더 단순한 경우만 전환” 원칙을 유지해 `ZoomableImageView`, `PlayerLayerView`는 남기고 `ShareSheetView`만 단순 wrapper 후보로 분류
 
 ### 5. 이번 사용자 피드백으로 scope가 다시 바뀜
 
@@ -220,30 +238,25 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 ### 7. 이번 세션에서 실제로 수정된 파일
 
 - `PHOU/Presentation/MediaDetail/MediaDetailView.swift`
-  - `NavigationStack + toolbar + safeAreaInset` 기반 기본 SwiftUI chrome으로 전환
-  - 상단 중앙 타이틀을 위치/날짜/시간 2줄 구조로 전환
-  - `LayoutAwareScrollView`를 추가해 layout 시점마다 이미지 centering 재적용
-  - 단일 탭 배경 토글, double-tap zoom, share/info/edit UI 유지
-  - 현재/인접 페이지 우선 로딩 유지
-  - 최신 수정: modal info sheet 제거, swipe-up inline info panel 추가
-  - 최신 수정: immersive 전환 시 상단/하단 chrome fade, status bar hide, safe-area-aware viewport 재계산 추가
-  - 최신 수정: info button과 upward swipe가 같은 panel open 경로를 공유하도록 정리
-  - 최신 수정: overlay 상단/하단 chrome 제거 후 `ToolbarItem`/`ToolbarItemGroup` 기반 system toolbar로 재전환
-  - 최신 수정: iOS 26에서 `ToolbarSpacer`와 `.sharedBackgroundVisibility(.hidden)`를 써서 Liquid Glass grouping을 실험
-  - 최신 수정: viewport width를 safe area 기준으로 다시 계산하고, zoom reset은 실제 scroll view bounds를 기준으로 맞추도록 변경
-  - 최신 수정: portrait photo가 normal/immersive에서 같은 fit size를 갖도록 viewport reserve 계산 제거
-  - 최신 수정: 하단 액션도 다시 `ToolbarItem` 기반으로 유지하고, iOS 18에서는 `bottomBar` + `status` placement 조합으로 재배치
-  - 최신 수정: favorite 버튼 tint 보정
-  - 최신 수정: `AVPlayerViewController`를 제거하고 `AVPlayerLayer` 기반 player view로 단순화
-  - 최신 수정: video gravity를 `.resizeAspect`로 바꿔 과도한 확대 없이 가로나 세로 한 축이 꽉 차게 표시
-  - 최신 수정: `TabView` 콘텐츠를 항상 safe area 밖까지 확장해 immersive가 UI/background만 숨기도록 정리
+  - scene state, toolbar orchestration, panel open/close, share/alert/sheet presentation만 남도록 축소
+  - page view / panel layout / UIKit bridge를 다른 파일로 이동해 조립 책임 중심으로 정리
 - `PHOU/Presentation/MediaDetail/MediaDetailFeature.swift`
   - 최신 수정: 대규모 라이브러리에서 상세 뷰 state 비교 비용을 줄이기 위해 `Equatable`을 current item 중심으로 축소
-- `PHOU/Presentation/MediaDetail/MediaDetailSupport.swift`
-  - PhotoKit request safety 래퍼 추가
-  - detail image / player item / metadata / share item 로딩 공용화
-  - location reverse geocoding + fallback 처리
-  - 파일명, 앨범, 촬영 기기, 제목용 날짜/시간 formatter를 포함한 상세 메타데이터 계산 추가
+- `PHOU/Presentation/MediaDetail/MediaDetailAssetLoader.swift`
+  - detail image / player item / metadata / share item 로딩 책임 분리
+  - asset cache, image cache, location cache 유지
+- `PHOU/Presentation/MediaDetail/MediaDetailModels.swift`
+  - `MediaAssetDetails`와 날짜/시간/타이틀 formatter 분리
+- `PHOU/Presentation/MediaDetail/MediaDetailPhotoKitBridge.swift`
+  - PhotoKit request cancel safety와 continuation box를 별도 파일로 격리
+- `PHOU/Presentation/MediaDetail/MediaDetailPages.swift`
+  - `MediaPageView`, `MediaImagePageView`, `MediaVideoPageView` 분리
+- `PHOU/Presentation/MediaDetail/MediaDetailPanels.swift`
+  - inline info panel, `MediaDetailLayout`, album picker를 분리
+- `PHOU/Presentation/MediaDetail/MediaDetailUIKit.swift`
+  - `ZoomableImageView`, `PlayerLayerView`, `LayoutAwareScrollView`를 별도 파일로 분리
+- `PHOU/Presentation/MediaDetail/MediaDetailShareSheet.swift`
+  - `UIActivityViewController` wrapper를 단독 파일로 분리
 - `PHOU/Presentation/Components/PhotoThumbnailView.swift`
   - caching/cancel 유지
   - 썸네일 화질 복구
@@ -272,25 +285,52 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
   - iPhone 13 mini에서 상세 뷰 레이아웃이 더 쉽게 깨짐
 - 사용자 최신 피드백 기준 추가 재검증 필요 항목:
   - 세로 사진은 normal/immersive가 사실상 같은 크기로 보여야 함
-  - iOS 18 하단 `ToolbarItem` 배치는 `share+favorite / info / crop+delete` 3구역에 가깝게 안정적으로 나와야 함
+  - iOS 18 하단 `ToolbarItem` 배치는 사용자 확인 기준 맞았으므로, 이후 리팩토링 뒤에도 같은 배치가 유지되는지만 보면 됨
   - 실기기에서만 상세 뷰 진입/사진 간 전환/normal↔immersive 전환/dismiss가 심하게 느림
   - 동영상이 크롭 없이 safe-area 무시 full-bleed 프레임 안에서 기대한 aspect-fit으로 보이는지 미확인
 - system toolbar 전환 후 runtime 경고:
   - `Adding 'UIKitToolbar' as a subview of UIHostingController.view is not supported and may result in a broken view hierarchy.`
 - 위 경고는 현재 `bottomBar/status` 조합에서도 남는지 먼저 확인해야 하며, 남는다면 `fullScreenCover`로 띄운 SwiftUI 상세 뷰 내부의 toolbar/presentation 조합과 연관될 가능성이 높음
 - `com.apple.accounts Code=7` 및 `CMPhotoJFIFUtilities err=-17102` 로그는 시스템/자산 레벨 노이즈일 가능성이 있으나, 아직 근거가 부족하므로 원인 미상으로 보존해야 함
-- 최신 세션의 검증 caveat:
-  - 공유 scheme `PHOU`가 project 안에 없어 기존 build 명령이 실패함
-  - target build로 우회해도 SPM dependency (`ConcurrencyExtras`, `IssueReporting`) 해석 오류로 막혀 최신 수정분의 compile verification을 확인하지 못함
+## 현재 MediaDetail 파일 구조
+
+- `MediaDetailView.swift`
+  - 화면 조립, toolbar content, panel open/close, route-level state
+- `MediaDetailPages.swift`
+  - `MediaPageView`, `MediaImagePageView`, `MediaVideoPageView`
+- `MediaDetailPanels.swift`
+  - inline info panel, `MediaDetailLayout`, album picker
+- `MediaDetailUIKit.swift`
+  - `ZoomableImageView`, `PlayerLayerView`, `LayoutAwareScrollView`
+- `MediaDetailAssetLoader.swift`
+  - display image / player item / share item / metadata load
+- `MediaDetailModels.swift`
+  - `MediaAssetDetails`와 formatter
+- `MediaDetailPhotoKitBridge.swift`
+  - continuation box와 request cancel safety 래퍼
+- `MediaDetailShareSheet.swift`
+  - 공유 시트 브리지
+
+## UIKit 감사 메모
+
+- 현재 UIKit 사용 지점
+  - `ZoomableImageView` + `UIScrollView`
+  - `PlayerLayerView` + `AVPlayerLayer`
+  - `ShareSheetView` + `UIActivityViewController`
+- 우선 유지 후보
+  - `ZoomableImageView`: pinch center, pan, centering, double-tap zoom 요구사항 때문에 당장은 UIKit 유지 쪽이 더 안전
+  - `PlayerLayerView`: 현재 `VideoPlayer`보다 제어가 단순하고 full-bleed aspect behavior를 직접 맞추기 쉬움
+- SwiftUI 전환 검토 후보
+  - `ShareSheetView`: `ShareLink`로 충분한 UX를 낼 수 있는지 검토
+  - UIKit helper가 단순 wrapper 수준으로만 남아 있는 경우 별도 SwiftUI component 또는 modifier로 대체 가능성 검토
 
 ## 실기기 성능 가설 업데이트
 
 - 가장 유력한 병목은 `TabView`가 현재/인접 페이지만 로드하더라도 body 재계산 시 전체 `items` 컬렉션을 기준으로 page tree를 다시 구성하는 점입니다. 라이브러리 규모가 클수록 진입/스와이프/닫기 시 diff와 identity 비교 비용이 누적될 수 있습니다.
 - 두 번째 후보는 고해상도 이미지 decode 비용입니다. 현재는 `displayImage(for:targetSize:)`가 viewport 기준으로 큰 이미지를 요청하고 있고, 실제 디코드/리사이즈 타이밍이 메인 스레드 frame budget과 겹치면 첫 진입과 페이지 전환에서 hitch가 생길 수 있습니다.
-- 세 번째 후보는 `fullScreenCover + NavigationStack + zoom transition + toolbar` 조합입니다. 특히 기존 하단 `bottomBar`는 `UIKitToolbar` 경고까지 보여서 hierarchy 구성 자체가 불안정했을 가능성이 큽니다. 이번 세션에서 하단 toolbar를 제거한 이유도 여기에 있습니다.
+- 세 번째 후보는 `fullScreenCover + NavigationStack + zoom transition + toolbar` 조합입니다. 특히 하단 `bottomBar/status` 조합과 함께 `UIKitToolbar` 경고가 관찰돼 hierarchy 구성 자체가 불안정할 가능성이 있습니다.
 - 네 번째 후보는 동영상/메타데이터 부가 작업입니다. 활성 페이지 video player item 준비, 현재 asset의 summary metadata 계산, reverse geocoding, album membership 조회가 같은 시점에 겹치면 체감이 더 나빠질 수 있습니다. 이 중 geocoding/album 조회는 현재도 비교적 늦게 로드하지만, summary title 갱신과 player 준비는 여전히 전환 직후에 맞물립니다.
 - 현재 수정으로 줄어든 비용:
-  - 하단 `bottomBar` toolbar 제거
   - video rendering을 `AVPlayerViewController`에서 `AVPlayerLayer`로 단순화
   - immersive 전환 시 viewport 재계산 대신 UI/background visibility만 변경
   - `MediaDetailFeature.State`의 `Equatable` 범위를 current item 중심으로 축소
@@ -308,6 +348,7 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 상세정보 시트의 소속 앨범을 모든 앨범 제목 리스트로 보여줄지, 사용자에게 의미 있는 대표 앨범만 보여줄지
 - 편집 버튼이 즉시 crop 화면으로 들어갈지, 추후 기능 확장을 고려해 별도 action sheet를 둘지
 - 현재 toolbar 기반 chrome 구조(상단 navigation toolbar + 하단 bottomBar/status)가 `fullScreenCover` + zoom transition + inline panel 조합에서 hierarchy 경고 없이 유지 가능한지
+- 현재 분리된 MediaDetail 파일 구조가 장기적으로도 유지보수하기 좋은지
 - inline 정보 패널 drag가 pager/zoom과 실제 사용에서 충돌하지 않는지
 - 핀치 기반 열 수 변경이 회전/iPad/split view에서도 충분히 자연스러운지
 - 썸네일 preheat(`startCachingImages`)가 실제 체감 성능 개선에 얼마나 기여하는지 profiling이 필요한지
@@ -318,8 +359,7 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 
 1. `UIKitToolbar` hierarchy 경고가 어떤 presentation 조합에서 나는지 재현 조건을 좁히기
 2. 세로 사진이 normal/immersive에서 같은 fit size를 유지하는지 실기기와 작은 시뮬레이터에서 수동 확인
-3. iOS 18 하단 `ToolbarItem`의 3구역 배치가 의도대로 나오는지 확인
-4. 실기기 지연이 라이브러리 규모, TCA state diff, metadata 로딩, `TabView` 페이지 유지, player 생성 중 어디에서 오는지 profiling/가설 검증
-5. 현재 toolbar 기반 chrome 구조가 충분히 안정적인지 확인하고, 필요 시 placement 조합 또는 overlay fallback 범위를 다시 검토
-6. 사진/동영상/줌 상태에서 inline 패널 drag가 pager와 충돌하지 않는지 확인
-5. 편집 액션 범위를 crop-only로 확정할지 판단하고, 확정 시 UI/저장 경로를 설계
+3. 실기기 지연이 라이브러리 규모, TCA state diff, metadata 로딩, `TabView` 페이지 유지, player 생성 중 어디에서 오는지 profiling/가설 검증
+4. 현재 toolbar 기반 chrome 구조가 충분히 안정적인지 확인하고, 필요 시 placement 조합 또는 overlay fallback 범위를 다시 검토
+5. 사진/동영상/줌 상태에서 inline 패널 drag가 pager와 충돌하지 않는지 확인
+6. 편집 액션 범위를 crop-only로 확정할지 판단하고, 확정 시 UI/저장 경로를 설계

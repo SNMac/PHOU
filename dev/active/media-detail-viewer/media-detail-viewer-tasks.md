@@ -1,7 +1,7 @@
 # Media Detail Viewer — 작업 체크리스트
 
 **GitHub Issue**: #6  
-**Last Updated**: 2026-04-23
+**Last Updated**: 2026-04-24
 
 ---
 
@@ -109,14 +109,14 @@
   - 메모: `com.apple.accounts Code=7`, `CMPhotoJFIFUtilities err=-17102` 로그가 앱 버그인지 시스템/자산 노이즈인지 판단 필요
 - [x] **5-5-v** 세로 사진 normal/immersive fit 재검증
   - 메모: latest patch에서 viewport reserve 계산을 제거해 normal/immersive가 사실상 같은 fit size를 쓰도록 바꿨지만, 실제 portrait photo에서 여백이 사라졌는지는 수동 확인이 필요함
-- [ ] **5-5-w** iOS 18 하단 action bar 재배치 검증
-  - 메모: 하단 액션을 다시 `ToolbarItem` 기반으로 유지하고 `bottomBar/status`로 `share+favorite / info / crop+delete` 3구역 배치를 노렸으므로, 작은 기기에서도 의도대로 보이는지 확인이 남아 있음
+- [x] **5-5-w** iOS 18 하단 action bar 재배치 검증
+  - 메모: `5d753c6`에서 iOS 26 미만 하단 `ToolbarItem` 배치를 다시 조정했고, 사용자 확인 기준 의도한 레이아웃이 맞음
 - [ ] **5-5-x** favorite tint / video letterbox 재검증
   - 메모: favorite 버튼 기본 tint를 accent color로 보정했고, video는 `AVPlayerLayer + .resizeAspect`로 바꿨지만 실제 기기에서 색상/크롭/letterbox가 기대와 맞는지 확인이 필요함
 - [ ] **5-5-y** 실기기 지연 완화 효과 확인
   - 메모: `MediaDetailFeature.State`의 `Equatable` 비교를 current item 중심으로 축소했고, `AVPlayerLayer` 경량화도 반영했으므로 실기기에서 진입/전환/dismiss 지연이 얼마나 줄었는지 확인이 남아 있음. 다만 하단 toolbar는 사용자 의도에 따라 유지
-- [ ] **5-5-z** 최신 빌드 검증 경로 복구
-  - 메모: `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build`는 공유 scheme 부재로 실패했고, `-target PHOU build`는 SPM dependency (`ConcurrencyExtras`, `IssueReporting`) 해석 오류로 실패해 최신 수정분 compile verification이 막혀 있음
+- [x] **5-5-z** 최신 빌드 검증 경로 복구
+  - 메모: 최신 사용자 확인 기준으로 리팩토링 후 빌드와 실행이 모두 정상 동작함. 이 턴에서는 동일 경로를 재실행하지 않았으므로 증거 출처는 사용자 확인임.
 - [ ] **5-6** iPad 레이아웃/회전에서 기본 동작 이상 없는지 확인
   - 메모: 현재 세션에서는 XcodeBuildMCP 기본값 설정 도구 부재로 UI 자동 검증까지는 진행하지 못함
   - 추가 메모: 2026-04-23 수정 후 `xcodebuild` 재빌드 성공, iOS 17 시뮬레이터 앱 설치/런치 및 런치 화면 캡처 확인
@@ -130,6 +130,21 @@
   - 추가 메모: 최신 세션에서는 build 자체가 막혔음. shared scheme `PHOU` 부재로 scheme build가 실패했고, target build도 SPM dependency 해석 오류로 실패해 compile verification을 남기지 못함
   - 추가 메모: 이번 세션에서는 하단 액션을 다시 `ToolbarItem` 기반으로 유지하고, video를 `AVPlayerLayer` 기반으로 단순화했지만 build verification은 여전히 scheme 부재/SPM 해석 문제로 막힘
   - 추가 메모: `xcodebuild -resolvePackageDependencies -project PHOU.xcodeproj`는 성공했지만, 직후 `-target PHOU build`는 여전히 `ConcurrencyExtras` / `IssueReporting` 모듈 해석 오류로 실패
+
+---
+
+## Phase 6: 구조 리팩토링 및 UIKit 감사 (L)
+
+- [x] **6-1** `MediaDetailView.swift` 책임 분리 설계
+  - 메모: `MediaDetailView.swift`는 화면 조립 중심으로 남기고, page/panel/UIKit bridge를 별도 파일로 나누는 경계를 문서와 코드에 반영함
+- [x] **6-2** `MediaDetailSupport.swift` 책임 분리 설계
+  - 메모: 기존 support 파일을 제거하고 asset loader / models / PhotoKit bridge / share support 파일로 분리함
+- [x] **6-3** UIKit 사용 지점 감사
+  - 메모: `ZoomableImageView`, `PlayerLayerView`는 유지, `ShareSheetView`는 추후 `ShareLink` 전환 후보로 분류함
+- [x] **6-4** SwiftUI 전환 후보 선별
+  - 메모: 단순 wrapper 성격의 `ShareSheetView`를 최우선 후보로 남기고, zoom/player bridge는 유지 후보로 정리함
+- [x] **6-5** 리팩토링 후 동작 보존 검증
+  - 메모: 최신 사용자 확인 기준으로 리팩토링 후 빌드와 실행이 모두 정상이며, 큰 동작 회귀 없이 구조 분리가 반영됨
 
 ---
 
@@ -147,6 +162,10 @@
 - [x] 하단 이전/다음 미디어 썸네일 스트립 기능용 feature issue 작성
   - 메모: GitHub Issue `#11` `미디어 상세 뷰 하단 썸네일 스트립 추가`
 - [ ] 상세 뷰 상태 전달 구조를 `items` 전체 배열 대신 windowed slice 또는 ID 중심으로 더 줄일지 검토
+- [x] `MediaDetailView.swift` / `MediaDetailSupport.swift` 리팩토링 설계 문서화
+  - 메모: 기존 분리 후보를 현재 파일 구조 설명으로 갱신함
+- [ ] `ShareSheetView`를 SwiftUI로 대체할 수 있는지 검토
+- [ ] zoom/player UIKit bridge를 유지할지 SwiftUI로 바꿀지 결정
 
 ---
 
@@ -155,3 +174,5 @@
 - [x] `2ae317c` `feat: #6 - 재사용 가능한 미디어 상세 뷰어 연결`
 - [x] `1b03f06` `fix: #6 - 미디어 뷰어 제스처와 재생 안정성 개선`
 - [x] `1cfddd6` `fix: #6 - 미디어 뷰어 정렬과 재생 동작 보정`
+- [x] `2ef498d` `fix: #6 - 미디어 상세 뷰 toolbar 유지와 영상 표시 보정`
+- [x] `5d753c6` `fix: #6 - iOS 18 하단 toolbar item 배치 조정`

@@ -1,7 +1,7 @@
 # feat: 재사용 가능한 미디어 상세 뷰어 구현
 
 **GitHub Issue**: #6  
-**Last Updated**: 2026-04-23
+**Last Updated**: 2026-04-24
 
 ---
 
@@ -17,7 +17,9 @@
 
 추가 사용자 피드백으로 scope가 다시 조정되었습니다. 상세 뷰는 iPhone 기본 사진 앱에 더 가깝게 다듬어야 하며, 상단/하단 chrome은 fade되는 overlay 성격으로 유지하되 제스처와 safe area 변화에 자연스럽게 반응해야 합니다. 또한 상세 정보는 별도 modal sheet보다 Photos 앱처럼 아래에서 올라오는 inline info panel 구조가 더 맞는 것으로 범위가 재정의되었습니다. 편집 기능은 공개 시스템 사진 편집 UI를 앱 내부에서 직접 띄우는 방향이 아니라, 필요 시 crop-only 커스텀 편집으로 축소하는 쪽으로 재정의합니다.
 
-가장 최근 세션에서는 iOS 26 기본 사진 앱의 Liquid Glass 인상을 맞추기 위해 `ToolbarItem` / `ToolbarItemGroup` 기반 system toolbar 전환을 시도했습니다. 사용자의 최신 피드백에 따라 하단도 `ToolbarItem` 기반을 유지합니다. 다만 iOS 18에서는 public API만으로 Photos 앱 같은 원형 그룹 버튼을 그대로 재현하기 어렵기 때문에, 배치는 `bottomBar`와 `status` placement 조합으로 `share+favorite / info / crop+delete` 3구역에 최대한 가깝게 맞추는 방향으로 정리합니다.
+가장 최근 세션에서는 iOS 26 기본 사진 앱의 Liquid Glass 인상을 맞추기 위해 `ToolbarItem` / `ToolbarItemGroup` 기반 system toolbar 전환을 시도했습니다. 사용자의 최신 피드백에 따라 하단도 `ToolbarItem` 기반을 유지합니다. 2026-04-24 커밋(`5d753c6`)에서 iOS 26 미만 경로를 `bottomBar` + `status` placement 조합으로 다시 조정했고, 사용자 확인 기준 의도한 3구역 배치가 맞는 상태입니다.
+
+가장 최근 세션에서 위 리팩토링을 실제로 수행했습니다. `MediaDetailView.swift`는 화면 조립 중심으로 줄였고, 기존 `MediaDetailSupport.swift`는 역할별 파일로 해체했습니다. 현재 우선순위는 더 이상 "어떻게 나눌지"가 아니라, 분리된 구조 위에서 편집 범위 결정과 남은 UX/polish 검증을 이어가는 것입니다.
 
 ---
 
@@ -43,10 +45,11 @@
 | 고해상도 원본 로딩 | ✅ 1차 구현 완료 | detail image loader와 현재/인접 페이지 우선 로딩이 반영됨 |
 | 동영상 재생 | ✅ 1차 구현 완료 | 재생은 가능하며, 최신 수정에서 `AVPlayerLayer` 기반으로 단순화해 크롭 없이 한 축이 꽉 차는 aspect-fit 표시를 우선 적용 |
 | 사진 초기 세로 정렬 | ⚠️ 보정 후 재검증 필요 | `LayoutAwareScrollView` 기반 재-centering 경로를 추가했지만 실제 사용자 재현이 사라졌는지는 아직 수동 확인 필요 |
-| 상세 chrome 구성 | ⚠️ 재검토 중 | overlay chrome에서 system `toolbar` 기반으로 다시 전환했지만, 사용자 보고 기준 레이아웃 문제는 여전하고 `UIKitToolbar` 경고가 추가됨 |
+| 상세 chrome 구성 | ⚠️ 부분 안정화 | iOS 26 미만 하단 `ToolbarItem` 배치는 사용자 확인 기준 의도대로 맞았지만, `UIKitToolbar` 경고와 전체 toolbar/presentation 조합 안정성은 여전히 검증 필요 |
 | 위치/날짜 포맷 | ✅ 1차 구현 완료 | 위치 유무에 따른 2줄 타이틀과 최근성/24시간 설정 기반 포맷이 코드에 반영됨 |
 | 상세정보 표시 | ⚠️ 구조 전환 중 | modal sheet 대신 swipe-up inline info panel로 전환됐고, 실제 체감/세부 레이아웃 검증이 남음 |
 | 편집 기능 | ⚠️ 미정 | 현재는 안내 alert만 표시하며, crop-only 편집 범위를 실제로 구현할지 결정 필요 |
+| 파일 구조 | ✅ 1차 리팩토링 완료 | `MediaDetailView.swift`를 456줄까지 줄였고, support 책임은 loader / models / pages / panels / UIKit bridge / PhotoKit bridge / share sheet 파일로 분리됨 |
 
 ### 현재 구현 반영 상태
 
@@ -58,6 +61,7 @@
 - 활성 페이지가 아닌 동영상은 pause 하도록 로직 추가
 - 썸네일은 `PHCachingImageManager` + request cancel을 유지하면서 화질을 다시 `highQualityFormat` 쪽으로 복구
 - 상단/하단 chrome 모두 `ToolbarItem` 기반을 유지하되, 하단은 iOS 18에서 `bottomBar` + `status` placement 조합으로 재배치함
+- iOS 26 미만 하단 `ToolbarItem` 재배치는 사용자 확인 기준으로 의도한 레이아웃이 맞는 상태
 - 중앙 타이틀은 위치 유무에 따라 `위치 / 날짜+시간` 또는 `날짜 / 시간` 2줄 구조를 사용함
 - 위치 표기는 `administrativeArea/locality/subLocality/thoroughfare/name` 조합 기반의 best-effort 상세 문자열로 확장됨
 - 상세정보는 이제 modal sheet 대신 inline panel 후보 구조로 전환 중이며, 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 같은 데이터 소스로 표시함
@@ -70,6 +74,9 @@
   - `Error returned from daemon: Error Domain=com.apple.accounts Code=7 "(null)"` 로그가 함께 관찰됨
   - `<<<< CMPhotoJFIFUtilities >>>> signalled err=-17102` 로그가 반복 관찰됨
 - 위 세 로그 중 마지막 두 개는 현재 구현과 직접 연관인지 아직 확인되지 않았고, 첫 번째 `UIKitToolbar` 경고는 최근 toolbar 구조 전환과 연관 가능성이 높아 보이므로 우선 조사 대상임
+- 구조 리팩토링은 1차 완료됨
+- 최신 사용자 확인 기준으로 빌드와 실행 모두 정상 동작함
+- 다음 작업은 편집 범위 확정, 남은 메타데이터 검증, `UIKitToolbar` 경고/잔여 UX 확인처럼 기능 완성도 쪽에 가깝게 이동함
 
 ---
 
@@ -151,6 +158,19 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - 빌드/시뮬레이터 기준으로 사진 확대, 동영상 재생, paging, dismiss를 확인합니다.
 - mixed media UX에서 남는 후속 항목(비디오 배지, 자동 재생 정책, iPad 레이아웃)을 별도 이슈로 분리할지 결정합니다.
 
+### Phase 6: 구조 리팩토링 및 UIKit 감사
+
+- 완료:
+  - `MediaDetailView.swift`는 scene state와 toolbar/panel orchestration 중심으로 축소했습니다.
+  - page content는 `MediaDetailPages.swift`로, inline panel과 layout은 `MediaDetailPanels.swift`로, UIKit bridge는 `MediaDetailUIKit.swift`로 옮겼습니다.
+  - 기존 `MediaDetailSupport.swift`는 제거하고, `MediaDetailAssetLoader.swift`, `MediaDetailModels.swift`, `MediaDetailPhotoKitBridge.swift`, `MediaDetailShareSheet.swift`로 역할별 분리했습니다.
+- 판단:
+  - `ZoomableImageView`와 `PlayerLayerView`는 현재 UX 요구사항상 UIKit 유지가 더 안전하다고 보고 유지했습니다.
+  - `ShareSheetView`는 단순 wrapper라 추후 `ShareLink` 전환 후보로 남깁니다.
+- 검증 상태:
+  - 최신 사용자 확인 기준으로 리팩토링 후 빌드와 실행은 모두 정상입니다.
+  - 후속 검증은 구조가 아닌 제품 동작과 UX polish 항목 위주로 이어갑니다.
+
 ### 현재 남은 후속 작업
 
 - 시뮬레이터에서 실제 진입/스와이프/동영상 재생 수동 확인
@@ -162,6 +182,7 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - 상세정보 시트의 파일명/기기/앨범 정보가 실제 자산에서 일관되게 채워지는지 검증
 - crop-only 편집이 도입되면 저장/취소/원본 보존 정책을 추가 검증
 - 갤러리 스크롤 성능이 여전히 체감 이슈면 별도 profiling/issue 분리
+- `UIKitToolbar` 경고가 여전히 남는지, 현재 구조에서 자연스럽게 사라졌는지 재확인
 - 테스트 타깃 도입 여부 판단
 
 ---
@@ -205,6 +226,12 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 
 - 상위 컨테이너는 paging, dismiss, chrome만 담당합니다.
 - 실제 콘텐츠는 `ImageDetailContent` / `VideoDetailContent` 성격의 분리된 View로 나누는 편이 유지보수에 유리합니다.
+
+### 8. UIKit은 필요 최소한만 유지
+
+- SwiftUI가 더 단순한 경우 UIKit bridge는 줄입니다.
+- 1차 감사 대상은 `ShareSheetView`처럼 단순 래퍼인 코드와 과도하게 뷰 파일에 섞인 UIKit helper입니다.
+- `ZoomableImageView`와 low-level player rendering은 현재 UX 요구사항상 UIKit 유지 가능성이 높으므로, 먼저 분리부터 하고 전환 여부는 별도 검증 후 결정합니다.
 
 ### 7. Gallery fetch 범위 확장 가능성
 
