@@ -15,12 +15,6 @@ struct MediaDetailsPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Capsule()
-                .fill(Color.secondary.opacity(0.35))
-                .frame(width: 48, height: 5)
-                .padding(.top, 12)
-                .padding(.bottom, 14)
-
             if let details {
                 ScrollView(showsIndicators: false) {
                     MediaInlineInfoContent(details: details)
@@ -72,7 +66,7 @@ private struct MediaInlineInfoContent: View {
             }
             .padding(.horizontal, 24)
         }
-        .padding(.top, 12)
+        .padding(.top, 24)
     }
 
     private func infoLine(systemImage: String, text: String) -> some View {

@@ -15,6 +15,7 @@ enum MediaDetailAssetLoader {
     nonisolated(unsafe) private static let assetCache = NSCache<NSString, PHAsset>()
     nonisolated(unsafe) private static let imageCache = NSCache<NSString, UIImage>()
     nonisolated(unsafe) private static let locationCache = NSCache<NSString, NSString>()
+    nonisolated(unsafe) private static let deviceCache = NSCache<NSString, NSString>()
 
     static func displayImage(for assetID: String, targetSize: CGSize) async -> UIImage? {
         let requestSize = await pixelSize(from: targetSize)
@@ -114,7 +115,7 @@ enum MediaDetailAssetLoader {
         }
 
         let summary = await summaryDetails(for: asset)
-        async let deviceTextTask = resolvedDeviceText(for: phAsset)
+        async let deviceTextTask = resolvedDeviceText(for: asset.id)
         async let albumTextTask = resolvedAlbumText(for: phAsset)
 
         return MediaAssetDetails(
@@ -319,34 +320,46 @@ enum MediaDetailAssetLoader {
         return titles.isEmpty ? "앨범 정보 없음" : titles.joined(separator: ", ")
     }
 
-    private static func resolvedDeviceText(for asset: PHAsset) async -> String {
-        guard asset.mediaType == .image else {
-            return "정보 없음"
+    private static func resolvedDeviceText(for assetID: String) async -> String {
+        if let cached = deviceCache.object(forKey: assetID as NSString) {
+            return cached as String
         }
 
-        let options = PHImageRequestOptions()
-        options.deliveryMode = .highQualityFormat
-        options.resizeMode = .none
-        options.isNetworkAccessAllowed = false
-        options.isSynchronous = false
+        let resolved = await Task.detached(priority: .utility) { () -> String in
+            guard
+                let asset = self.asset(for: assetID),
+                asset.mediaType == .image
+            else {
+                return "정보 없음"
+            }
 
-        guard
-            let data = await MediaDetailPhotoKitBridge.requestImageData(for: asset, options: options),
-            let source = CGImageSourceCreateWithData(data as CFData, nil),
-            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-        else {
-            return "정보 없음"
-        }
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.resizeMode = .none
+            options.isNetworkAccessAllowed = false
+            options.isSynchronous = false
 
-        let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
-        let make = normalizedText(tiff?[kCGImagePropertyTIFFMake] as? String)
-        let model = normalizedText(tiff?[kCGImagePropertyTIFFModel] as? String)
+            guard
+                let data = await MediaDetailPhotoKitBridge.requestImageData(for: asset, options: options),
+                let source = CGImageSourceCreateWithData(data as CFData, nil),
+                let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+            else {
+                return "정보 없음"
+            }
 
-        if let model, let make {
-            return model.contains(make) ? model : "\(make) \(model)"
-        }
+            let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
+            let make = normalizedText(tiff?[kCGImagePropertyTIFFMake] as? String)
+            let model = normalizedText(tiff?[kCGImagePropertyTIFFModel] as? String)
 
-        return model ?? make ?? "정보 없음"
+            if let model, let make {
+                return model.contains(make) ? model : "\(make) \(model)"
+            }
+
+            return model ?? make ?? "정보 없음"
+        }.value
+
+        deviceCache.setObject(resolved as NSString, forKey: assetID as NSString)
+        return resolved
     }
 
     private static func coordinateText(for location: CLLocation) -> String {
