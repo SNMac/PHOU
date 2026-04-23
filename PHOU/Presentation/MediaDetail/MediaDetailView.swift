@@ -208,7 +208,7 @@ struct MediaDetailView: View {
             return
         }
 
-        currentDetails = .placeholder(for: currentAsset)
+        currentDetails = MediaDetailAssetLoader.provisionalSummaryDetails(for: currentAsset)
         let assetID = currentAsset.id
         let details = await MediaDetailAssetLoader.summaryDetails(for: currentAsset)
         guard assetID == currentAssetID else { return }
@@ -326,7 +326,7 @@ struct MediaDetailView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
-        .frame(maxWidth: 220)
+        .frame(width: 220)
         .multilineTextAlignment(.center)
     }
 

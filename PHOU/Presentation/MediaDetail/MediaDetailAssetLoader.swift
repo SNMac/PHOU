@@ -81,6 +81,33 @@ enum MediaDetailAssetLoader {
         )
     }
 
+    static func provisionalSummaryDetails(for asset: PhotoAsset) -> MediaAssetDetails {
+        guard let phAsset = self.asset(for: asset.id) else {
+            return .placeholder(for: asset)
+        }
+
+        let captureDate = phAsset.creationDate ?? asset.creationDate
+        let hasLocation = phAsset.location != nil
+        let title = MediaAssetDetails.provisionalTitleTexts(
+            date: captureDate,
+            hasLocation: hasLocation
+        )
+
+        return MediaAssetDetails(
+            id: asset.id,
+            titlePrimaryText: title.primary,
+            titleSecondaryText: title.secondary,
+            captureDateText: MediaAssetDetails.formattedInfoDate(captureDate),
+            locationText: hasLocation ? "위치 확인 중" : "위치 없음",
+            filenameText: resolvedFilename(for: phAsset),
+            deviceText: "상세정보에서 확인 가능",
+            albumText: "상세정보에서 확인 가능",
+            isFavorite: phAsset.isFavorite,
+            mediaTypeText: MediaAssetDetails.mediaTypeText(asset.mediaType),
+            pixelSizeText: "\(phAsset.pixelWidth) × \(phAsset.pixelHeight)"
+        )
+    }
+
     static func details(for asset: PhotoAsset) async -> MediaAssetDetails {
         guard let phAsset = self.asset(for: asset.id) else {
             return .placeholder(for: asset)
