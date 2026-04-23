@@ -9,7 +9,7 @@ import SwiftUI
 import ComposableArchitecture
 
 struct GalleryView: View {
-    let store: StoreOf<GalleryFeature>
+    @Bindable var store: StoreOf<GalleryFeature>
 
     private let columns = [
         GridItem(.flexible(), spacing: 2),
@@ -22,6 +22,9 @@ struct GalleryView: View {
             content
                 .navigationTitle("갤러리")
                 .onAppear { store.send(.view(.onAppear)) }
+                .fullScreenCover(item: $store.scope(state: \.mediaDetail, action: \.mediaDetail)) { store in
+                    MediaDetailView(store: store)
+                }
         }
     }
 
@@ -35,42 +38,36 @@ struct GalleryView: View {
             deniedView
 
         case .limited:
-            if store.isLoading && store.photos.isEmpty {
+            if store.isLoading && store.assets.isEmpty {
                 loadingView
             } else {
-                limitedPhotoGrid
+                limitedMediaGrid
             }
 
         case .authorized:
-            if store.isLoading && store.photos.isEmpty {
+            if store.isLoading && store.assets.isEmpty {
                 loadingView
             } else {
-                photoGrid
+                mediaGrid
             }
         }
     }
 
-    private var photoGrid: some View {
+    private var mediaGrid: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 2) {
-                ForEach(store.photos) { asset in
-                    Color.clear
-                        .aspectRatio(1, contentMode: .fill)
-                        .overlay { PhotoThumbnailView(id: asset.id) }
-                        .clipped()
+                ForEach(store.assets) { asset in
+                    mediaGridCell(asset)
                 }
             }
         }
     }
 
-    private var limitedPhotoGrid: some View {
+    private var limitedMediaGrid: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 2) {
-                ForEach(store.photos) { asset in
-                    Color.clear
-                        .aspectRatio(1, contentMode: .fill)
-                        .overlay { PhotoThumbnailView(id: asset.id) }
-                        .clipped()
+                ForEach(store.assets) { asset in
+                    mediaGridCell(asset)
                 }
             }
             limitedBannerView
@@ -79,7 +76,7 @@ struct GalleryView: View {
 
     private var limitedBannerView: some View {
         VStack(spacing: 12) {
-            Text("접근 가능한 사진이 제한되어 있어요")
+            Text("접근 가능한 미디어가 제한되어 있어요")
                 .font(.headline)
             Text("설정 앱에서 PHOU의 전체 사진 접근을 허용해 주세요.")
                 .font(.subheadline)
@@ -102,7 +99,7 @@ struct GalleryView: View {
 
     private var deniedView: some View {
         ContentUnavailableView {
-            Label("사진에 접근할 권한이 없어요", systemImage: "photo.slash")
+            Label("미디어에 접근할 권한이 없어요", systemImage: "photo.slash")
         } description: {
             Text("설정 앱에서 PHOU의 사진 접근을 허용해 주세요.")
         } actions: {
@@ -113,5 +110,31 @@ struct GalleryView: View {
             }
             .buttonStyle(.borderedProminent)
         }
+    }
+
+    private func mediaGridCell(_ asset: PhotoAsset) -> some View {
+        Button {
+            store.send(.view(.mediaTapped(asset.id)))
+        } label: {
+            Color.clear
+                .aspectRatio(1, contentMode: .fill)
+                .overlay {
+                    PhotoThumbnailView(id: asset.id)
+                        .overlay(alignment: .bottomTrailing) {
+                            if asset.mediaType == .video {
+                                Image(systemName: "video.fill")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(6)
+                                    .background(.black.opacity(0.6))
+                                    .clipShape(Circle())
+                                    .padding(6)
+                            }
+                        }
+                }
+                .clipped()
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

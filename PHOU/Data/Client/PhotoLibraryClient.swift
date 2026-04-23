@@ -11,6 +11,7 @@ import ComposableArchitecture
 @DependencyClient
 struct PhotoLibraryClient: Sendable {
     var requestAuthorization: @Sendable () async -> PhotoAuthStatus = { .notDetermined }
+    var fetchMedia: @Sendable () async throws -> [PhotoAsset] = { [] }
     var fetchPhotos: @Sendable () async throws -> [PhotoAsset] = { [] }
     var fetchAssetsInAlbum: @Sendable (_ albumId: String) async throws -> [PhotoAsset] = { _ in [] }
     var fetchAlbums: @Sendable () async throws -> [AlbumGroup] = { [] }
@@ -23,18 +24,24 @@ extension PhotoLibraryClient: DependencyKey {
             let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
             return PhotoAuthStatus(from: status)
         },
+        fetchMedia: {
+            let options = PHFetchOptions()
+            options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+
+            let result = PHAsset.fetchAssets(with: options)
+            var assets: [PhotoAsset] = []
+            result.enumerateObjects { asset, _, _ in
+                assets.append(photoAsset(from: asset))
+            }
+            return assets
+        },
         fetchPhotos: {
             let options = PHFetchOptions()
             options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
             let result = PHAsset.fetchAssets(with: .image, options: options)
             var assets: [PhotoAsset] = []
             result.enumerateObjects { asset, _, _ in
-                assets.append(PhotoAsset(
-                    id: asset.localIdentifier,
-                    creationDate: asset.creationDate,
-                    isFavorite: asset.isFavorite,
-                    mediaType: .image
-                ))
+                assets.append(photoAsset(from: asset))
             }
             return assets
         },
@@ -51,12 +58,7 @@ extension PhotoLibraryClient: DependencyKey {
             let result = PHAsset.fetchAssets(in: collection, options: options)
             var assets: [PhotoAsset] = []
             result.enumerateObjects { asset, _, _ in
-                assets.append(PhotoAsset(
-                    id: asset.localIdentifier,
-                    creationDate: asset.creationDate,
-                    isFavorite: asset.isFavorite,
-                    mediaType: mediaType(from: asset.mediaType)
-                ))
+                assets.append(photoAsset(from: asset))
             }
             return assets
         },
@@ -102,6 +104,16 @@ extension PhotoLibraryClient: DependencyKey {
 
     static let previewValue = PhotoLibraryClient(
         requestAuthorization: { .authorized },
+        fetchMedia: {
+            (0..<12).map { i in
+                PhotoAsset(
+                    id: "preview-media-\(i)",
+                    creationDate: Calendar.current.date(byAdding: .day, value: -i, to: Date()),
+                    isFavorite: i == 0,
+                    mediaType: i.isMultiple(of: 4) ? .video : .image
+                )
+            }
+        },
         fetchPhotos: {
             (0..<12).map { i in
                 PhotoAsset(
@@ -158,6 +170,15 @@ private func mediaType(from type: PHAssetMediaType) -> PhotoAsset.MediaType {
     case .video: return .video
     default: return .unknown
     }
+}
+
+private func photoAsset(from asset: PHAsset) -> PhotoAsset {
+    PhotoAsset(
+        id: asset.localIdentifier,
+        creationDate: asset.creationDate,
+        isFavorite: asset.isFavorite,
+        mediaType: mediaType(from: asset.mediaType)
+    )
 }
 
 private func firstAssetId(in collection: PHAssetCollection) -> String? {

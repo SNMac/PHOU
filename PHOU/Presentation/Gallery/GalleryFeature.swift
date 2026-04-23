@@ -13,23 +13,26 @@ struct GalleryFeature {
     @ObservableState
     struct State: Equatable {
         var authStatus: PhotoAuthStatus = .notDetermined
-        var photos: [PhotoAsset] = []
+        var assets: [PhotoAsset] = []
         var isLoading = false
         var errorMessage: String?
+        @Presents var mediaDetail: MediaDetailFeature.State?
     }
 
     enum Action {
         case view(ViewAction)
         case `internal`(InternalAction)
+        case mediaDetail(PresentationAction<MediaDetailFeature.Action>)
 
         enum ViewAction {
             case onAppear
             case retryTapped
+            case mediaTapped(String)
         }
 
         enum InternalAction {
             case authResponse(PhotoAuthStatus)
-            case photosResponse(Result<[PhotoAsset], Error>)
+            case mediaResponse(Result<[PhotoAsset], Error>)
         }
     }
 
@@ -45,13 +48,24 @@ struct GalleryFeature {
             case .view(.retryTapped):
                 return requestAuth(state: &state)
 
+            case let .view(.mediaTapped(id)):
+                guard
+                    let currentIndex = state.assets.firstIndex(where: { $0.id == id })
+                else { return .none }
+
+                state.mediaDetail = MediaDetailFeature.State(
+                    items: state.assets,
+                    currentIndex: currentIndex
+                )
+                return .none
+
             case let .internal(.authResponse(status)):
                 state.authStatus = status
                 switch status {
                 case .authorized, .limited:
                     return .run { send in
-                        await send(.internal(.photosResponse(
-                            Result { try await photoLibraryClient.fetchPhotos() }
+                        await send(.internal(.mediaResponse(
+                            Result { try await photoLibraryClient.fetchMedia() }
                         )))
                     }
                 default:
@@ -59,16 +73,22 @@ struct GalleryFeature {
                     return .none
                 }
 
-            case let .internal(.photosResponse(.success(photos))):
-                state.photos = photos
+            case let .internal(.mediaResponse(.success(assets))):
+                state.assets = assets
                 state.isLoading = false
                 return .none
 
-            case let .internal(.photosResponse(.failure(error))):
+            case let .internal(.mediaResponse(.failure(error))):
                 state.errorMessage = error.localizedDescription
                 state.isLoading = false
                 return .none
+
+            case .mediaDetail:
+                return .none
             }
+        }
+        .ifLet(\.$mediaDetail, action: \.mediaDetail) {
+            MediaDetailFeature()
         }
     }
 

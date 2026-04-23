@@ -14,22 +14,25 @@ struct AlbumPhotoGridFeature {
     struct State: Equatable {
         var albumId: String
         var albumTitle: String
-        var photos: [PhotoAsset] = []
+        var assets: [PhotoAsset] = []
         var isLoading = false
         var errorMessage: String?
+        @Presents var mediaDetail: MediaDetailFeature.State?
     }
 
     enum Action {
         case view(ViewAction)
         case `internal`(InternalAction)
+        case mediaDetail(PresentationAction<MediaDetailFeature.Action>)
 
         enum ViewAction {
             case onAppear
             case retryTapped
+            case mediaTapped(String)
         }
 
         enum InternalAction {
-            case photosResponse(Result<[PhotoAsset], Error>)
+            case assetsResponse(Result<[PhotoAsset], Error>)
         }
     }
 
@@ -40,32 +43,49 @@ struct AlbumPhotoGridFeature {
             switch action {
             case .view(.onAppear):
                 guard !state.isLoading else { return .none }
-                return fetchPhotos(state: &state)
+                return fetchAssets(state: &state)
 
             case .view(.retryTapped):
-                return fetchPhotos(state: &state)
+                return fetchAssets(state: &state)
 
-            case let .internal(.photosResponse(.success(photos))):
-                state.photos = photos
+            case let .view(.mediaTapped(id)):
+                guard
+                    let currentIndex = state.assets.firstIndex(where: { $0.id == id })
+                else { return .none }
+
+                state.mediaDetail = MediaDetailFeature.State(
+                    items: state.assets,
+                    currentIndex: currentIndex
+                )
+                return .none
+
+            case let .internal(.assetsResponse(.success(assets))):
+                state.assets = assets
                 state.isLoading = false
                 state.errorMessage = nil
                 return .none
 
-            case let .internal(.photosResponse(.failure(error))):
-                state.photos = []
+            case let .internal(.assetsResponse(.failure(error))):
+                state.assets = []
                 state.isLoading = false
                 state.errorMessage = error.localizedDescription
                 return .none
+
+            case .mediaDetail:
+                return .none
             }
+        }
+        .ifLet(\.$mediaDetail, action: \.mediaDetail) {
+            MediaDetailFeature()
         }
     }
 
-    private func fetchPhotos(state: inout State) -> Effect<Action> {
+    private func fetchAssets(state: inout State) -> Effect<Action> {
         let albumId = state.albumId
         state.isLoading = true
         state.errorMessage = nil
         return .run { send in
-            await send(.internal(.photosResponse(
+            await send(.internal(.assetsResponse(
                 Result { try await photoLibraryClient.fetchAssetsInAlbum(albumId) }
             )))
         }

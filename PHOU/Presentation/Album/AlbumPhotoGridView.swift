@@ -9,7 +9,7 @@ import SwiftUI
 import ComposableArchitecture
 
 struct AlbumPhotoGridView: View {
-    let store: StoreOf<AlbumPhotoGridFeature>
+    @Bindable var store: StoreOf<AlbumPhotoGridFeature>
 
     private let columns = [
         GridItem(.flexible(), spacing: 2),
@@ -22,11 +22,14 @@ struct AlbumPhotoGridView: View {
             .navigationTitle(store.albumTitle)
             .navigationBarTitleDisplayMode(.inline)
             .onAppear { store.send(.view(.onAppear)) }
+            .fullScreenCover(item: $store.scope(state: \.mediaDetail, action: \.mediaDetail)) { store in
+                MediaDetailView(store: store)
+            }
     }
 
     @ViewBuilder
     private var content: some View {
-        if store.isLoading && store.photos.isEmpty {
+        if store.isLoading && store.assets.isEmpty {
             loadingView
         } else if let errorMessage = store.errorMessage {
             errorView(message: errorMessage)
@@ -42,7 +45,7 @@ struct AlbumPhotoGridView: View {
 
     private func errorView(message: String) -> some View {
         ContentUnavailableView {
-            Label("사진을 불러오지 못했어요", systemImage: "exclamationmark.triangle")
+            Label("미디어를 불러오지 못했어요", systemImage: "exclamationmark.triangle")
         } description: {
             Text(message)
         } actions: {
@@ -56,11 +59,30 @@ struct AlbumPhotoGridView: View {
     private var photoGrid: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 2) {
-                ForEach(store.photos) { asset in
-                    Color.clear
-                        .aspectRatio(1, contentMode: .fill)
-                        .overlay { PhotoThumbnailView(id: asset.id) }
-                        .clipped()
+                ForEach(store.assets) { asset in
+                    Button {
+                        store.send(.view(.mediaTapped(asset.id)))
+                    } label: {
+                        Color.clear
+                            .aspectRatio(1, contentMode: .fill)
+                            .overlay {
+                                PhotoThumbnailView(id: asset.id)
+                                    .overlay(alignment: .bottomTrailing) {
+                                        if asset.mediaType == .video {
+                                            Image(systemName: "video.fill")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(.white)
+                                                .padding(6)
+                                                .background(.black.opacity(0.6))
+                                                .clipShape(Circle())
+                                                .padding(6)
+                                        }
+                                    }
+                            }
+                            .clipped()
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
