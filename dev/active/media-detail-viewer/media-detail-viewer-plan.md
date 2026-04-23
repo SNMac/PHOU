@@ -143,17 +143,17 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - 사진은 최초 진입 직후에도 별도 상호작용 없이 Y축 중앙 정렬되어야 합니다.
 - 위로 스와이프하면 사진이 위로 lift 되면서 하단에서 inline 정보 패널이 올라와야 합니다.
 
-### Phase 3B: Photos 스타일 스크롤 표면으로 재구성
+### Phase 3B: Photos 스타일 시트 표현으로 재정렬
 
-- `MediaDetailView`의 상세 정보 표현 모델을 `ZStack + bottom overlay panel + media lift` 구조에서 `세로 스크롤 가능한 단일 surface` 구조로 바꿉니다.
-- 상단 미디어 영역은 첫 화면에서 현재처럼 크게 보이되, 그 아래에 캡션/메타데이터/지도/후속 정보 영역이 실제 content로 이어지도록 배치합니다.
-- info 버튼과 upward swipe는 `showsDetailsPanel = true` 같은 단순 토글이 아니라, 동일한 스크롤 목적지(예: summary anchor / details anchor)로 이동하는 트리거로 통합합니다.
-- 가능하면 iOS 18의 `ScrollView` + `scrollPosition`/`scrollTargetBehavior` 계열로 "스크롤되지만 한 번에 턱 걸리는" 전환을 우선 검토하고, 제스처 충돌이 심하면 UIKit `UIScrollView` 기반 vertical coordinator를 보조 수단으로 둡니다.
-- 상단 toolbar는 content 바깥 chrome으로 유지하고, 하단 액션은 system toolbar 유지 가능성을 먼저 검토하되 scroll surface와 hierarchy 경고가 계속 충돌하면 `safeAreaInset` 또는 overlay action bar로 되돌리는 fallback도 허용합니다.
-- 현재 `currentDetails`의 summary/details 2단계 로딩 구조는 유지하되, expanded load 시점을 "패널 open"이 아니라 "details section에 진입할 때"로 옮깁니다.
+- `MediaDetailView`의 상세 정보 표현 모델은 `ZStack + bottom overlay panel + media lift` 구조를 유지하되, "별도 패널이 뜬다"보다 "시트가 올라오면서 사진이 함께 붙어 올라간다"는 체감에 맞춰 다듬습니다.
+- info 버튼과 upward swipe는 모두 같은 panel reveal 동작을 트리거하도록 유지합니다.
+- 세로 사진은 details reveal 전후에도 viewport 기준 중앙 정렬을 잃지 않아야 합니다.
+- 상단 toolbar는 content 바깥 chrome으로 유지하고, 하단 액션도 system toolbar를 우선 유지합니다.
+- 현재 `currentDetails`의 summary/details 2단계 로딩 구조는 유지하되, summary는 첫 진입부터 title 안정화에 충분한 정보를 제공해야 하고 expanded metadata는 panel 노출 시점에 이어서 불러옵니다.
 - summary/details 2단계 로딩을 유지하더라도, 상단 principal title은 placeholder에서 실데이터로 바뀌며 폭이 흔들리지 않도록 별도 안정화 경로를 둡니다.
 - 후보는 1) title용 최소 요약 데이터를 더 이른 시점에 preload, 2) 위치가 준비될 때까지도 고정 높이/폭 정책 유지, 3) 초기 fallback 문자열을 더 보수적으로 잡아 재배치를 줄이는 방식입니다.
-- 목표 UX는 "모달이 뜬다"가 아니라 "동일 화면이 위로 이어지며 아래 정보가 나타난다"로 명시합니다.
+- 상세 정보 내부에는 `캡션 추가` 같은 편집성 UI를 두지 않고, 메타데이터 중심으로만 구성합니다.
+- 목표 UX는 "기본 SwiftUI sheet처럼 분리된 모달"도 아니고 "세로 스크롤로 이어지는 상세 본문"도 아닌, Photos 앱 레퍼런스처럼 상단 chrome 위계를 유지한 채 bottom sheet와 미디어가 함께 움직이는 표현입니다.
 
 ### Phase 3.5: 메타데이터 / 편집 범위 확장
 
@@ -191,10 +191,10 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 ### 현재 남은 후속 작업
 
 - 시뮬레이터에서 실제 진입/스와이프/동영상 재생 수동 확인
-- overlay 기반 상세정보 패널을 Photos 스타일 integrated scroll surface로 바꿀지 최종 확정
-- vertical scroll snap 구조와 horizontal media paging의 제스처 충돌 수준 확인
-- info 버튼 탭 시 details section으로 자연스럽게 이동하는 scroll animation 경로 설계
-- details section 진입 후에도 상단/하단 chrome을 어느 수준까지 유지할지 정책 확정
+- 현재 bottom sheet 표현에서 사진과 시트의 동반 이동감이 레퍼런스처럼 느껴지는지 수동 확인
+- upward swipe / downward dismiss 감도와 horizontal media paging의 제스처 충돌 수준 확인
+- info 버튼 탭과 upward swipe가 완전히 같은 reveal/dismiss 상태 전이를 쓰는지 점검
+- details reveal 중에도 상단/하단 chrome이 어느 수준까지 유지되어야 하는지 정책 확정
 - 상단 위치/날짜 title의 placeholder -> 실데이터 전환이 눈에 띄지 않도록 loading 타이밍 또는 fallback 정책 확정
 - 필요 시 현재 페이지 표시와 제스처 충돌 UX 미세 조정
 - 사진 세로 중앙 정렬이 최초 진입 시에도 완전히 해결됐는지 수동 검증

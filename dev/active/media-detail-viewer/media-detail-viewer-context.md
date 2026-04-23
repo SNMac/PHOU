@@ -97,16 +97,17 @@
 - 이 구조는 기술적으로는 modal sheet가 아니지만, 화면 하단에 별도 레이어가 올라오는 인상이 강해서 iOS 기본 사진 앱의 "같은 화면 안에서 아래 내용이 이어지는" 감각과는 차이가 남
 - 2026-04-24 후속 구현에서 상단 title은 더 이상 generic placeholder에서 시작하지 않고, `PHAsset.location` 존재 여부를 즉시 반영한 provisional summary로 시작하도록 바뀜
 - 즉, 위치가 있는 자산은 첫 진입부터 `위치 확인 중 / 날짜+시간` 2줄 구조를 유지하고, 이후 실제 위치 문자열로 치환되어 title 재배치를 줄이는 방향으로 보정됨
-- 같은 후속 구현에서 상세 정보 표현은 `bottom overlay panel`에서 `ScrollView + LazyVStack + scrollPosition` 기반 integrated scroll surface로 1차 전환됨
-- 현재는 media pager가 상단 full-height section, metadata가 하단 section으로 이어지고, info 버튼/위로 스와이프가 모두 동일한 details anchor로 이동하도록 통합됨
-- 이 변경으로 상단/하단 toolbar는 details 노출 중에도 화면 chrome으로 남고, 상세정보가 별도 presentation layer가 아니라 content layer로 배치되는 방향이 코드에 반영됨
+- 같은 날 상세 정보 표현을 `ScrollView + LazyVStack + scrollPosition` 기반 integrated scroll surface로 1차 전환해 봤지만, 사용자 피드백 기준으로 Photos 레퍼런스의 체감과 달랐고 세로 사진 Y축 중앙 정렬도 흐트러지는 부작용이 확인됨
+- 이후 최신 커밋 `9f9bc5c`에서 해당 시도를 되돌리고, 현재는 `showsDetailsPanel` + `MediaDetailsPanel` overlay 구조를 유지하되 "시트가 올라오면서 사진도 함께 위로 lift 되는" 방향을 기준선으로 삼고 있음
+- 즉, 현재 상세 정보 UI는 엄밀한 modal sheet도, 스크롤로 이어지는 content layer도 아니고, toolbar 위계는 유지하면서 Photos 앱처럼 붙어 올라오는 인상을 내는 custom bottom presentation에 더 가까움
+- 사용자 요청에 따라 상세 정보 내부의 `캡션 추가` UI는 제거된 상태임
 - 현재 MediaDetail 핵심 파일 길이:
   - `PHOU/Presentation/MediaDetail/MediaDetailView.swift`: 456줄
   - `PHOU/Presentation/MediaDetail/MediaDetailAssetLoader.swift`: 340줄
   - `PHOU/Presentation/MediaDetail/MediaDetailPhotoKitBridge.swift`: 260줄
   - `PHOU/Presentation/MediaDetail/MediaDetailUIKit.swift`: 243줄
-- 다만 이번 후속 구현은 현재 세션에서 code change까지만 반영됐고, compile/runtime verification은 샌드박스 네트워크 제한 때문에 아직 남아 있음
-- 특히 unrestricted build 승인 전 기준으로는 model harness(`MediaAssetDetails.provisionalTitleTexts`)만 red-green 확인됐고, Xcode build는 package dependency checkout 단계에서 막힌 상태임
+- 다만 이번 후속 구현은 현재 세션에서 code change까지만 반영됐고, compile/runtime verification은 아직 남아 있음
+- model harness(`MediaAssetDetails.provisionalTitleTexts`)는 red-green 확인했지만, 최신 unrestricted `xcodebuild -project PHOU.xcodeproj -target PHOU build`는 SPM 의존성 쪽 `ConcurrencyExtras` / `IssueReporting` 모듈 해석 실패로 멈춤
 - 다음 단계의 핵심은 구조 분리 자체보다 남은 compile/runtime 검증, toolbar 경고 재현 여부, scroll gesture 체감 확인임
 
 즉, 현재 구현은 "재사용 가능한 사진/동영상 통합 뷰어"의 첫 버전까지는 도달해 있습니다.
@@ -228,10 +229,10 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 ### 5. 이번 사용자 피드백으로 scope가 다시 바뀜
 
 - 상세 뷰 사진은 최초 진입 시점부터 Y축 중앙 정렬이 맞아야 함
-- 상세정보는 "패널을 띄우는 것"보다 "같은 상세 화면을 위로 더 스크롤하면 아래 정보가 이어서 나타나는 것"에 가까워야 함
-- info 버튼과 upward swipe는 같은 boolean panel open/close가 아니라, 동일한 세로 스크롤 상태 전환 또는 anchor 이동으로 수렴하는 편이 맞음
-- 상단 toolbar가 정보 위에 남아 보이는 reference UX를 맞추려면, 정보 영역이 presentation layer가 아니라 content layer여야 한다는 가설이 강함
-- 따라서 다음 구현의 핵심은 패널 스타일/애니메이션 미세조정보다 `MediaDetailView`의 레이아웃 모델 자체를 overlay panel 구조에서 integrated scroll surface 구조로 재정의하는 것임
+- 상세정보는 완전한 "스크롤 연장면"보다는, 아래에서 시트처럼 올라오되 사진도 그에 맞춰 함께 위로 이동하는 형태가 레퍼런스 체감에 더 가까움
+- info 버튼과 upward swipe는 동일한 panel reveal 동작으로 수렴해야 함
+- 상단 toolbar가 정보 위에 남아 보이는 reference UX는 유지하되, 구현 방식은 content layer scroll보다 custom bottom presentation 쪽이 더 적합하다는 쪽으로 최근 판단이 바뀜
+- 따라서 다음 구현의 핵심은 `MediaDetailView`의 overlay panel 구조를 버리는 것이 아니라, 시트와 사진의 동반 이동감, dismiss 감도, 레이아웃 안정성을 더 Photos답게 다듬는 것임
 - 성능 이유로 늦춘 metadata 로딩 때문에 상단 위치/날짜 title이 placeholder에서 실데이터로 바뀌며 살짝 버벅이는 문제도 이번 범위에 포함해야 함
 - 특히 principal title은 "날짜만 먼저 표시 -> 위치까지 합쳐 재배치" 흐름이 눈에 띄지 않도록 초기 표시 정책과 로딩 타이밍을 다시 설계해야 함
 - 상단/하단 chrome은 커스텀 디자인 대신 기본 SwiftUI 요소를 사용해야 함
