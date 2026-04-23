@@ -7,9 +7,11 @@
 
 import SwiftUI
 
-struct MediaDetailsScrollSection: View {
+struct MediaDetailsPanel: View {
     let details: MediaAssetDetails?
     let layout: MediaDetailLayout
+    let isPresented: Bool
+    let onDismiss: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,24 +22,38 @@ struct MediaDetailsScrollSection: View {
                 .padding(.bottom, 16)
 
             if let details {
-                MediaInlineInfoContent(details: details)
-                    .padding(.bottom, layout.detailsBottomPadding)
+                ScrollView(showsIndicators: false) {
+                    MediaInlineInfoContent(details: details)
+                        .padding(.bottom, layout.detailsBottomPadding)
+                }
             } else {
                 ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 48)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .top)
-        .frame(minHeight: layout.detailsSectionMinHeight, alignment: .top)
-        .background(Color(uiColor: .systemBackground))
+        .frame(maxWidth: .infinity)
+        .frame(height: layout.panelHeight, alignment: .top)
+        .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(Color.primary.opacity(0.08))
+                .fill(Color.white.opacity(0.12))
                 .frame(height: 0.5)
                 .padding(.top, 54)
         }
+        .offset(y: isPresented ? 0 : layout.panelHiddenOffset)
+        .opacity(isPresented ? 1 : 0.001)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .allowsHitTesting(isPresented)
+        .highPriorityGesture(detailsDismissGesture)
+    }
+
+    private var detailsDismissGesture: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onEnded { value in
+                guard value.translation.height > 48 else { return }
+                onDismiss()
+            }
     }
 }
 
@@ -46,14 +62,6 @@ private struct MediaInlineInfoContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("캡션 추가")
-                .font(.title3.weight(.medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 24)
-
-            Divider()
-                .padding(.horizontal, 24)
-
             VStack(alignment: .leading, spacing: 12) {
                 Text(details.captureDateText)
                     .font(.title2.weight(.semibold))
@@ -66,7 +74,7 @@ private struct MediaInlineInfoContent: View {
             }
             .padding(.horizontal, 24)
         }
-        .padding(.top, 6)
+        .padding(.top, 12)
     }
 
     private func infoLine(systemImage: String, text: String) -> some View {
@@ -92,12 +100,20 @@ struct MediaDetailLayout {
         )
     }
 
-    var detailsSectionMinHeight: CGFloat {
-        max(containerSize.height * 0.72, 520)
+    var panelHeight: CGFloat {
+        min(max(containerSize.height * 0.46, 300), 430)
     }
 
     var detailsBottomPadding: CGFloat {
         max(safeAreaInsets.bottom + 96, 120)
+    }
+
+    var panelHiddenOffset: CGFloat {
+        panelHeight + safeAreaInsets.bottom + 24
+    }
+
+    var mediaLift: CGFloat {
+        min(panelHeight * 0.22, 88)
     }
 }
 
