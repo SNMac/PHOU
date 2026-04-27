@@ -82,18 +82,18 @@ enum MediaDetailAssetLoader {
         )
     }
 
-    // Returns a provisional summary using only the asset cache — no PhotoKit fetch on the main thread.
-    // The async refreshCurrentDetails() task always follows immediately to fill in real data.
+    // Returns a provisional summary without accessing any PHAsset or PHAssetResource properties,
+    // preventing PHAssetOriginalMetadataProperties faults on the main thread.
+    // Uses only PhotoAsset values and the already-resolved locationCache.
+    // The async summaryDetails/details tasks fill in real data immediately after.
     static func provisionalSummaryDetails(for asset: PhotoAsset) -> MediaAssetDetails {
-        guard let phAsset = assetCache.object(forKey: asset.id as NSString) else {
-            return .placeholder(for: asset)
-        }
+        let captureDate = asset.creationDate
+        let cachedLocation = locationCache.object(forKey: asset.id as NSString) as String?
+        let hasKnownLocation = cachedLocation.map { $0 != "위치 없음" } ?? false
 
-        let captureDate = phAsset.creationDate ?? asset.creationDate
-        let hasLocation = phAsset.location != nil
         let title = MediaAssetDetails.provisionalTitleTexts(
             date: captureDate,
-            hasLocation: hasLocation
+            hasLocation: hasKnownLocation
         )
 
         return MediaAssetDetails(
@@ -101,13 +101,13 @@ enum MediaDetailAssetLoader {
             titlePrimaryText: title.primary,
             titleSecondaryText: title.secondary,
             captureDateText: MediaAssetDetails.formattedInfoDate(captureDate),
-            locationText: hasLocation ? "위치 확인 중" : "위치 없음",
-            filenameText: resolvedFilename(for: phAsset),
+            locationText: cachedLocation ?? "위치 확인 중",
+            filenameText: "정보 확인 중",
             deviceText: "상세정보에서 확인 가능",
             albumText: "상세정보에서 확인 가능",
-            isFavorite: phAsset.isFavorite,
+            isFavorite: asset.isFavorite,
             mediaTypeText: MediaAssetDetails.mediaTypeText(asset.mediaType),
-            pixelSizeText: "\(phAsset.pixelWidth) × \(phAsset.pixelHeight)"
+            pixelSizeText: "-"
         )
     }
 
