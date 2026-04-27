@@ -82,8 +82,10 @@ enum MediaDetailAssetLoader {
         )
     }
 
+    // Returns a provisional summary using only the asset cache — no PhotoKit fetch on the main thread.
+    // The async refreshCurrentDetails() task always follows immediately to fill in real data.
     static func provisionalSummaryDetails(for asset: PhotoAsset) -> MediaAssetDetails {
-        guard let phAsset = self.asset(for: asset.id) else {
+        guard let phAsset = assetCache.object(forKey: asset.id as NSString) else {
             return .placeholder(for: asset)
         }
 
@@ -214,10 +216,9 @@ enum MediaDetailAssetLoader {
             $0.contains("특별시") || $0.contains("광역시") || $0.contains("특별자치시")
         } ?? false
 
-        let primary = deduplicatedLocationComponent(
-            prefersAdministrativeArea ? administrativeArea : locality,
-            fallback: administrativeArea ?? locality
-        )
+        let primary = prefersAdministrativeArea
+            ? (administrativeArea ?? locality)
+            : (locality ?? administrativeArea)
 
         let neighborhood = preferredNeighborhoodText(subLocality: subLocality, name: name)
 
@@ -270,13 +271,6 @@ enum MediaDetailAssetLoader {
 
         guard normalizedCandidate == normalizedBase else { return false }
         return candidate != base
-    }
-
-    private static func deduplicatedLocationComponent(_ preferred: String?, fallback: String?) -> String? {
-        if let preferred {
-            return preferred
-        }
-        return fallback
     }
 
     private static func normalizedText(_ value: String?) -> String? {

@@ -1,7 +1,7 @@
 # Media Detail Viewer — 작업 체크리스트
 
 **GitHub Issue**: #6  
-**Last Updated**: 2026-04-27
+**Last Updated**: 2026-04-27 (코드 품질 수정 세션)
 
 ---
 
@@ -197,6 +197,25 @@
   - 메모: 기존 분리 후보를 현재 파일 구조 설명으로 갱신함
 - [ ] `ShareSheetView`를 SwiftUI로 대체할 수 있는지 검토
 - [ ] zoom/player UIKit bridge를 유지할지 SwiftUI로 바꿀지 결정
+
+---
+
+## Phase 7: 코드 품질 수정 (이번 세션)
+
+- [x] **7-1** `MediaDetailPhotoKitBridge`: 4개 `ContinuationBox` 클래스를 제네릭 `ContinuationBox<T>` 하나로 통합
+  - 수용 기준: `ImageContinuationBox`, `PlayerItemContinuationBox`, `URLContinuationBox`, `DataContinuationBox`, `ImagePropertiesContinuationBox` 제거, `ContinuationBox<T>` 단일 구현으로 대체됨
+- [x] **7-2** `MediaDetailPhotoKitBridge.requestImage`: dead code 제거
+  - 수용 기준: `isDegraded == true`인데 `deliveryMode == .highQualityFormat`일 때 degraded 이미지를 반환하는 두 번째 조건 제거됨. 실제 도달 불가한 경로였음.
+- [x] **7-3** `MediaDetailPhotoKitBridge`: 미사용 `requestImageData` 함수 제거
+  - 수용 기준: 파일 내 정의만 있고 호출처가 없는 dead code 확인 후 제거됨
+- [x] **7-4** `MediaDetailAssetLoader.provisionalSummaryDetails`: 메인 스레드 PhotoKit 접근 제거
+  - 수용 기준: `assetCache`에 없을 경우 즉시 placeholder 반환. `PHAsset.fetchAssets` 동기 호출이 메인 스레드에서 일어나지 않음. 이후 async `refreshCurrentDetails()`가 실제 데이터를 채움.
+- [x] **7-5** `MediaDetailAssetLoader.deduplicatedLocationComponent`: dead code 제거
+  - 수용 기준: `preferred ?? fallback`과 동일한 함수 제거, 호출부를 `locality ?? administrativeArea` 직접 nil 병합으로 대체
+- [x] **7-6** `MediaDetailView.detailsPanel`: 중복 nil 병합 제거
+  - 수용 기준: `displayedDetails ?? currentAsset.map(MediaAssetDetails.placeholder)` 이중 병합을 `displayedDetails` 단일 참조로 단순화
+- [x] **7-7** `MediaDetailPanels.AlbumPickerSheet`: 불필요한 `enumerated()` 제거
+  - 수용 기준: `ForEach(Array(albums.enumerated()), id: \.element.id) { _, album in }` → `ForEach(albums) { album in }` (AlbumGroup: Identifiable 활용)
 
 ---
 

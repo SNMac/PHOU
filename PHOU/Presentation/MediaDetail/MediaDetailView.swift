@@ -415,7 +415,7 @@ struct MediaDetailView: View {
     @ViewBuilder
     private func detailsPanel(layout: MediaDetailLayout) -> some View {
         MediaDetailsPanel(
-            details: displayedDetails ?? currentAsset.map(MediaAssetDetails.placeholder),
+            details: displayedDetails,
             layout: layout,
             isPresented: showsDetailsPanel,
             onDismiss: closeDetailsPanel

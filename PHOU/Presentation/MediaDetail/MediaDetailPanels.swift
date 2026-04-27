@@ -116,7 +116,7 @@ struct AlbumPickerSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(Array(albums.enumerated()), id: \.element.id) { _, album in
+                ForEach(albums) { album in
                     Button {
                         onSelect(album.id)
                     } label: {

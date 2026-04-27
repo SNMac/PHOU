@@ -320,6 +320,31 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
   - `Adding 'UIKitToolbar' as a subview of UIHostingController.view is not supported and may result in a broken view hierarchy.`
 - 위 경고는 현재 `bottomBar/status` 조합에서도 남는지 먼저 확인해야 하며, 남는다면 `fullScreenCover`로 띄운 SwiftUI 상세 뷰 내부의 toolbar/presentation 조합과 연관될 가능성이 높음
 - `com.apple.accounts Code=7` 및 `CMPhotoJFIFUtilities err=-17102` 로그는 시스템/자산 레벨 노이즈일 가능성이 있으나, 아직 근거가 부족하므로 원인 미상으로 보존해야 함
+## 2026-04-27 코드 품질 수정 세션 요약
+
+### 이번 세션에서 적용된 수정
+
+**`MediaDetailPhotoKitBridge.swift`**:
+- `ImageContinuationBox`, `PlayerItemContinuationBox`, `URLContinuationBox`, `DataContinuationBox`, `ImagePropertiesContinuationBox` 5개 클래스를 제네릭 `ContinuationBox<T>: @unchecked Sendable` 하나로 통합했음. NSLock 자체는 필요하다고 판단 — PhotoKit callback 스레드와 Swift task 취소 핸들러가 동시에 continuation을 resume할 수 있기 때문.
+- `requestImage`에서 도달 불가한 두 번째 조건 제거: `isDegraded == true`이고 `deliveryMode == .highQualityFormat`일 때 degraded 이미지를 반환하는 분기. `.highQualityFormat`은 degraded를 먼저 보내지 않으므로 실제 도달하지 않는 dead code였음.
+- 미사용 `requestImageData` 함수 제거 (정의만 있고 호출처 없음).
+
+**`MediaDetailAssetLoader.swift`**:
+- `provisionalSummaryDetails`가 `onChange(of: currentAssetID)` 핸들러에서 메인 스레드에 동기 호출되면서 내부에서 `PHAsset.fetchAssets`를 실행하는 문제 수정. 이제 `assetCache` 미스 시 즉시 `.placeholder`를 반환. 실데이터는 항상 뒤따르는 async `refreshCurrentDetails()` task가 채움.
+- `deduplicatedLocationComponent(_, fallback:)` 함수 제거 — `preferred ?? fallback` 동일 구현. 호출부를 직접 nil 병합으로 대체.
+
+**`MediaDetailView.swift`**:
+- `detailsPanel(layout:)` 내 이중 nil 병합 제거. `displayedDetails`가 이미 `currentDetails ?? currentAsset.map(.placeholder)` fallback을 포함하므로 두 번째 `?? currentAsset.map(...)` 불필요.
+
+**`MediaDetailPanels.swift`**:
+- `AlbumPickerSheet`의 `ForEach(Array(albums.enumerated()), id: \.element.id)` → `ForEach(albums)` (`AlbumGroup: Identifiable` 활용).
+
+### 빌드 검증 상태
+- xcodebuild target 빌드는 기존 sandbox SPM 모듈 해석 오류(`ConcurrencyExtras`, `IssueReporting`)로 막혀 있음. 이번 세션 변경과 무관한 기존 blocker.
+- 수정된 파일 자체의 로직 오류는 없음을 코드 리뷰로 확인.
+
+---
+
 ## 현재 MediaDetail 파일 구조
 
 - `MediaDetailView.swift`
