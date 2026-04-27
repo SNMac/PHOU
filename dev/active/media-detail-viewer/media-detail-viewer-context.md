@@ -320,6 +320,51 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
   - `Adding 'UIKitToolbar' as a subview of UIHostingController.view is not supported and may result in a broken view hierarchy.`
 - 위 경고는 현재 `bottomBar/status` 조합에서도 남는지 먼저 확인해야 하며, 남는다면 `fullScreenCover`로 띄운 SwiftUI 상세 뷰 내부의 toolbar/presentation 조합과 연관될 가능성이 높음
 - `com.apple.accounts Code=7` 및 `CMPhotoJFIFUtilities err=-17102` 로그는 시스템/자산 레벨 노이즈일 가능성이 있으나, 아직 근거가 부족하므로 원인 미상으로 보존해야 함
+## 2026-04-27 후속 세션 — 런타임 경고 완전 해결
+
+### PHAssetOriginalMetadataProperties 경고 근본 원인 및 해결
+
+**경고**: `Missing prefetched properties for PHAssetOriginalMetadataProperties ... Fetching on demand on the main queue, which may degrade performance.`
+
+**근본 원인**: `provisionalSummaryDetails`가 `onChange(of: currentAssetID)` 핸들러(메인 스레드)에서 동기 호출되면서 내부에서 두 가지 PHAsset 속성에 접근했음:
+1. `phAsset.location` — 일부 자산은 GPS 정보가 PHAsset DB가 아닌 이미지 파일 EXIF에 저장되어 있어, 메인 스레드에서 접근 시 `PHAssetOriginalMetadataProperties`를 fault-load함
+2. `PHAssetResource.assetResources(for: phAsset)` (`resolvedFilename`) — 리소스 목록 조회도 동일하게 metadata fault 유발 가능
+
+이전에 촬영 기기 추출 경로를 `requestImageDataAndOrientation`에서 `PHAssetResourceManager.requestData` + incremental probe로 교체했을 때 경고가 줄었지만 완전히 사라지지 않았던 이유가 이것임.
+
+**해결**: `provisionalSummaryDetails`를 `PhotoAsset` + `locationCache` 전용으로 제한. PHAsset/PHAssetResource 접근 완전 제거.
+- `phAsset.location` → `locationCache` 조회로 대체 (없으면 "위치 확인 중" 플레이스홀더)
+- `resolvedFilename(for: phAsset)` → "정보 확인 중" 플레이스홀더로 대체
+- `phAsset.isFavorite` → `asset.isFavorite` (PhotoAsset, TCA 상태)
+- `phAsset.pixelWidth/Height` → "-" 플레이스홀더로 대체
+
+**부수 효과**: `UIKitToolbar` hierarchy 경고도 함께 사라짐. 경고의 근본 원인이 PHAsset 메타데이터 fault로 인한 메인 스레드 부하였던 것으로 추정됨.
+
+### ContinuationBox<T> 제네릭의 Swift 6 sending 파라미터
+
+**문제**: 제네릭 `ContinuationBox<T>`에서 `func resume(_ value: T)` 호출 시 `Sending 'value' risks causing data races` Swift 6 오류 발생.
+
+**원인**: Swift 6에서 `CheckedContinuation.resume(returning:)`은 `sending T` 파라미터를 요구함. `T: Sendable` 제약 없는 제네릭에서 값 전달 시 region-isolation 오류 발생.
+
+**해결**: `func resume(_ value: sending T)` — `sending` 키워드로 호출자가 disconnected region에서 값을 전달함을 명시, `resume(returning:)` 체인이 성립함. UIImage, AVPlayerItem 등 non-Sendable 타입도 별도 래퍼 없이 처리 가능.
+
+### Xcode MCP 도입
+
+- `xcrun mcpbridge` 기반 Xcode MCP 서버 등록 (`claude mcp add --transport stdio xcode -- xcrun mcpbridge`)
+- `mcp__xcode__BuildProject`로 Xcode에서 직접 빌드 성공 확인 가능해짐
+- 이전까지 scheme 부재/SPM sandbox 제약으로 막혀 있던 빌드 검증 문제 해소
+- `tabIdentifier: windowtab5` (현재 열린 PHOU 프로젝트 탭)
+
+### 이번 세션 커밋 목록
+
+| 커밋 | 내용 |
+|------|------|
+| `4fc2bb1` | `refactor: #6 - MediaDetail 코드 품질 수정` (ContinuationBox 통합, dead code 제거 등) |
+| `7c6e3fa` | `fix: #6 - ContinuationBox.resume sending 파라미터 추가` |
+| `8aa72f2` | `fix: #6 - provisionalSummaryDetails 메인 스레드 metadata fault 제거` |
+
+---
+
 ## 2026-04-27 코드 품질 수정 세션 요약
 
 ### 이번 세션에서 적용된 수정

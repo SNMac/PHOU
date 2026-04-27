@@ -121,14 +121,14 @@
   - 메모: panel을 연 채로 옆 미디어로 넘겼을 때 이전 asset 정보가 남지 않고 새 asset 정보로 자연스럽게 바뀌어야 함
 - [ ] **5-5-r** 편집 액션 정책 검증
   - 메모: crop-only 구현 시 저장/취소 흐름, 미구현 시 버튼 정책을 명확히 해야 함
-- [ ] **5-5-s** `UIKitToolbar` runtime 경고 원인 분리
-  - 메모: 하단도 `ToolbarItem` 기반을 유지하기로 돌아섰으므로, 현재 `bottomBar/status` 조합에서 경고가 재현되는지 먼저 확인해야 함
-- [ ] **5-5-s-1** current overlay sheet와 toolbar 조합 재검증
-  - 메모: 최신 기준선인 overlay sheet + media lift 구조에서도 같은 hierarchy 경고가 남는지 분리해서 확인해야 함
+- [x] **5-5-s** `UIKitToolbar` runtime 경고 해결
+  - 메모: `provisionalSummaryDetails`에서 `PHAsset.location` 메인 스레드 접근을 제거하자 `UIKitToolbar` 경고도 함께 사라짐. 경고의 근본 원인은 PHAsset 메타데이터 fault로 인한 main-thread 부하였던 것으로 추정
+- [x] **5-5-s-1** current overlay sheet와 toolbar 조합 재검증
+  - 메모: 사용자 확인 기준 `UIKitToolbar` 경고 해소됨
 - [ ] **5-5-s-2** vertical/horizontal/zoom 제스처 충돌 수동 검증
   - 메모: 특히 세로 스와이프가 details reveal로 해석될 때, `TabView` paging과 확대된 사진 pan을 방해하지 않는지 확인 필요
-- [ ] **5-5-s-3** latest overlay sheet 기준 compile/build 검증
-  - 메모: unrestricted `xcodebuild -project PHOU.xcodeproj -target PHOU build`까지 시도했지만, 현재는 `swift-clocks` / `combine-schedulers` / `swift-perception` 쪽 `ConcurrencyExtras`, `IssueReporting` 모듈 해석 실패로 막힘
+- [x] **5-5-s-3** 빌드 검증
+  - 메모: Xcode MCP (`mcp__xcode__BuildProject`) 도입으로 이번 세션부터 scheme 부재/SPM 제약 없이 Xcode에서 직접 빌드 성공 확인 가능. 모든 이번 세션 수정 후 빌드 성공 확인됨.
 - [x] **5-5-t** iPhone 13 mini 레이아웃 재검증
   - 메모: normal/immersive 전환 후 상단 spacing, 사진 좌우 여백, toolbar 배치가 작은 기기에서 더 쉽게 깨진다는 사용자 보고가 있음
 - [x] **5-5-u** 런타임 부가 로그 분류
@@ -141,9 +141,10 @@
   - 메모: favorite 버튼 기본 tint를 accent color로 보정했고, video는 `AVPlayerLayer + .resizeAspect`로 바꿨지만 실제 기기에서 색상/크롭/letterbox가 기대와 맞는지 확인이 필요함
 - [ ] **5-5-y** 실기기 지연 완화 효과 확인
   - 메모: `MediaDetailFeature.State`의 `Equatable` 비교를 current item 중심으로 축소했고, `AVPlayerLayer` 경량화도 반영했으므로 실기기에서 진입/전환/dismiss 지연이 얼마나 줄었는지 확인이 남아 있음. 다만 하단 toolbar는 사용자 의도에 따라 유지
-- [ ] **5-5-y-1** `PHAssetOriginalMetadataProperties` 경고 재조사
-  - 메모: detached/caching만으로는 로그가 사라지지 않아, 이번 세션에서 촬영 기기 추출 경로를 `requestImageDataAndOrientation`에서 `PHAssetResourceManager.requestData` + incremental metadata probe로 교체함. 다음 확인은 "이 변경 후에도 같은 로그가 남는가"에 집중
-  - 추가 메모: 구현 직후 `withCheckedContinuation` optional 반환 타입 추론, `PHPhotosError.operationCancelled` 심볼 부재, `CGImageSourceCreateIncremental(nil)` optional binding 오류를 순차적으로 수정했고 모두 같은 커밋에 amend 반영함
+- [x] **5-5-y-1** `PHAssetOriginalMetadataProperties` 경고 해결
+  - 메모: `provisionalSummaryDetails`에서 `PHAsset.location`과 `PHAssetResource.assetResources(for:)` 접근을 메인 스레드에서 제거하자 경고가 완전히 사라짐.
+  - 근본 원인: 일부 자산은 GPS/리소스 정보가 PHAsset DB가 아닌 이미지 파일 EXIF에 저장되어, 메인 스레드에서 접근 시 PHAssetOriginalMetadataProperties를 fault-load함.
+  - 해결책: `provisionalSummaryDetails`를 `PhotoAsset` + `locationCache` 전용으로 제한. 실제 PHAsset 접근은 async `summaryDetails`/`details` 경로(백그라운드 스레드)에서만 수행.
 - [x] **5-5-z** 최신 빌드 검증 경로 복구
   - 메모: 최신 사용자 확인 기준으로 리팩토링 후 빌드와 실행이 모두 정상 동작함. 이 턴에서는 동일 경로를 재실행하지 않았으므로 증거 출처는 사용자 확인임.
 - [ ] **5-6** iPad 레이아웃/회전에서 기본 동작 이상 없는지 확인
@@ -161,6 +162,7 @@
   - 추가 메모: `xcodebuild -resolvePackageDependencies -project PHOU.xcodeproj`는 성공했지만, 직후 `-target PHOU build`는 여전히 `ConcurrencyExtras` / `IssueReporting` 모듈 해석 오류로 실패
   - 추가 메모: 이번 세션의 metadata 경고 대응 수정 후에도 sandbox 내부 검증은 `PHOU` scheme 부재와 SwiftPM cache 쓰기 제한 때문에 막혔고, unrestricted target build 승인을 요청해 둔 상태임
   - 추가 메모: 2026-04-27 후속 compile fix들은 파일 단위 오류 제보를 따라 수정했고, 프로젝트 전체 `xcodebuild` 재검증은 아직 다시 수행하지 못함
+  - 추가 메모: 이번 세션에서 Xcode MCP 도입 (`xcrun mcpbridge`). `mcp__xcode__BuildProject`로 scheme/SPM 제약 없이 빌드 성공 확인 가능해짐. 이번 세션 모든 수정 빌드 성공 확인됨.
 
 ---
 

@@ -49,7 +49,7 @@
 | 고해상도 원본 로딩 | ✅ 1차 구현 완료 | detail image loader와 현재/인접 페이지 우선 로딩이 반영됨 |
 | 동영상 재생 | ✅ 1차 구현 완료 | 재생은 가능하며, 최신 수정에서 `AVPlayerLayer` 기반으로 단순화해 크롭 없이 한 축이 꽉 차는 aspect-fit 표시를 우선 적용 |
 | 사진 초기 세로 정렬 | ⚠️ 보정 후 재검증 필요 | `LayoutAwareScrollView` 기반 재-centering 경로를 추가했지만 실제 사용자 재현이 사라졌는지는 아직 수동 확인 필요 |
-| 상세 chrome 구성 | ⚠️ 부분 안정화 | iOS 26 미만 하단 `ToolbarItem` 배치는 사용자 확인 기준 의도대로 맞았지만, `UIKitToolbar` 경고와 전체 toolbar/presentation 조합 안정성은 여전히 검증 필요 |
+| 상세 chrome 구성 | ✅ 안정화 | iOS 26 미만 하단 `ToolbarItem` 배치 맞음. `UIKitToolbar` 경고는 `provisionalSummaryDetails` 메인 스레드 PHAsset 접근 제거 후 함께 사라짐 |
 | 위치/날짜 포맷 | ✅ 1차 구현 완료 | 위치 유무에 따른 2줄 타이틀과 최근성/24시간 설정 기반 포맷이 코드에 반영됨 |
 | 상세정보 표시 | ⚠️ 구조 전환 중 | modal sheet 대신 swipe-up inline info panel로 전환됐고, 실제 체감/세부 레이아웃 검증이 남음 |
 | 편집 기능 | ⚠️ 미정 | 현재는 안내 alert만 표시하며, crop-only 편집 범위를 실제로 구현할지 결정 필요 |
