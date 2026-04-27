@@ -239,7 +239,7 @@ private final class ContinuationBox<T>: @unchecked Sendable {
         self.continuation = continuation
     }
 
-    func resume(_ value: T) {
+    func resume(_ value: sending T) {
         lock.lock()
         let c = continuation
         continuation = nil
