@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct MediaAssetDetails: Equatable, Identifiable {
+struct MediaAssetDetails: Equatable, Identifiable, Sendable {
     let id: String
     let titlePrimaryText: String
     let titleSecondaryText: String
@@ -38,16 +38,6 @@ struct MediaAssetDetails: Equatable, Identifiable {
             mediaTypeText: Self.mediaTypeText(asset.mediaType),
             pixelSizeText: "-"
         )
-    }
-
-    static func provisionalTitleTexts(date: Date?, hasLocation: Bool) -> (primary: String, secondary: String) {
-        guard hasLocation else {
-            return titleTexts(date: date, locationText: nil)
-        }
-
-        let formattedDate = formattedTitleDate(date)
-        let formattedTime = formattedTime(date)
-        return ("위치 확인 중", "\(formattedDate) \(formattedTime)")
     }
 
     static func titleTexts(date: Date?, locationText: String?) -> (primary: String, secondary: String) {

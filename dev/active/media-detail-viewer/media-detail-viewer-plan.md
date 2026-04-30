@@ -25,6 +25,8 @@
 
 가장 최근 세션에서 위 리팩토링을 실제로 수행했습니다. `MediaDetailView.swift`는 화면 조립 중심으로 줄였고, 기존 `MediaDetailSupport.swift`는 역할별 파일로 해체했습니다. 편집 기능은 Issue #6 범위에서는 현재 안내 Alert를 유지하고, 실제 사진 편집/crop-only 구현은 GitHub Issue #12로 분리했습니다. 현재 우선순위는 남은 UX/polish 검증을 이어가는 것입니다.
 
+2026-04-30 후속 UX 세션에서는 상세정보 패널의 metadata preload, placeholder 전환, title 깜빡임, 내부 텍스트 위치 흔들림은 대부분 정리됐습니다. 다만 Photos 스타일 reveal에서 사진이 패널과 함께 위로 lift 될 때 `TabView + ZoomableImageView(UIScrollView)` 조합이 위아래로 떨리는 문제가 남았습니다. 여러 UIKit 안정화 시도 후에도 완전히 해결되지 않아, 현재 코드에서는 임시로 사진 lift를 제거한 상태입니다. 이 상태는 떨림 회피에는 유리하지만 사용자가 원하는 "시트가 올라오며 사진도 함께 위로 움직이는" UX와 어긋납니다.
+
 ---
 
 ## Current State Analysis
@@ -51,7 +53,7 @@
 | 사진 초기 세로 정렬 | ⚠️ 보정 후 재검증 필요 | `LayoutAwareScrollView` 기반 재-centering 경로를 추가했지만 실제 사용자 재현이 사라졌는지는 아직 수동 확인 필요 |
 | 상세 chrome 구성 | ✅ 안정화 | iOS 26 미만 하단 `ToolbarItem` 배치 맞음. `UIKitToolbar` 경고는 `provisionalSummaryDetails` 메인 스레드 PHAsset 접근 제거 후 함께 사라짐 |
 | 위치/날짜 포맷 | ✅ 1차 구현 완료 | 위치 유무에 따른 2줄 타이틀과 최근성/24시간 설정 기반 포맷이 코드에 반영됨 |
-| 상세정보 표시 | ⚠️ 구조 전환 중 | modal sheet 대신 swipe-up inline info panel로 전환됐고, 실제 체감/세부 레이아웃 검증이 남음 |
+| 상세정보 표시 | ⚠️ 구조 전환 중 | metadata preload/title 안정화/내부 행 고정은 반영됨. 현재는 사진 lift 떨림 회피를 위해 미디어 동반 이동이 꺼져 있어 Photos 스타일 reveal 복원이 필요 |
 | 편집 기능 | ✅ 범위 확정 | Issue #6에서는 현재 안내 alert를 유지하고, crop-only 편집 구현은 GitHub Issue #12로 분리 |
 | 파일 구조 | ✅ 1차 리팩토링 완료 | `MediaDetailView.swift`를 456줄까지 줄였고, support 책임은 loader / models / pages / panels / UIKit bridge / PhotoKit bridge / share sheet 파일로 분리됨 |
 
@@ -80,7 +82,7 @@
 - 위 세 로그 중 마지막 두 개는 현재 구현과 직접 연관인지 아직 확인되지 않았고, 첫 번째 `UIKitToolbar` 경고는 최근 toolbar 구조 전환과 연관 가능성이 높아 보이므로 우선 조사 대상임
 - 구조 리팩토링은 1차 완료됨
 - 최신 사용자 확인 기준으로 빌드와 실행 모두 정상 동작함
-- 다음 작업은 남은 메타데이터 검증, 제스처 충돌 확인, 실기기 지연 확인, iPad 레이아웃 확인처럼 기능 완성도 쪽에 가깝게 이동함
+- 다음 작업의 최우선순위는 사진 떨림 없이 Photos 스타일 reveal을 복원하는 것임. 현재는 `TabView + UIScrollView`를 직접 offset으로 움직이는 방식 대신 snapshot/proxy layer 또는 별도 non-layout transform container를 검토해야 함
 
 ---
 
@@ -192,12 +194,16 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 
 ### 현재 남은 후속 작업
 
-- 시뮬레이터에서 실제 진입/스와이프/동영상 재생 수동 확인
-- 현재 bottom sheet 표현에서 사진과 시트의 동반 이동감이 레퍼런스처럼 느껴지는지 수동 확인
-- upward swipe / downward dismiss 감도와 horizontal media paging의 제스처 충돌 수준 확인
+- 사진 lift 떨림 없이 Photos 스타일 reveal 복원
+  - 현재 임시 상태: 사진 lift를 제거해 패널만 올라옴
+  - 금지할 가능성이 높은 접근: `TabView + ZoomableImageView(UIScrollView)` 자체에 직접 animated `offset` 적용
+  - 검토 후보: 현재 사진 snapshot/proxy layer를 따로 lift하고 실제 pager는 고정, 또는 zoomable view 외부에 UIKit layout과 분리된 transform 전용 wrapper 도입
+- 시뮬레이터/실기기에서 실제 진입/스와이프/동영상 재생 수동 확인
+- 복원 후 bottom sheet 표현에서 사진과 시트의 동반 이동감이 레퍼런스처럼 느껴지는지 수동 확인
+- upward swipe / downward dismiss 감도와 horizontal media paging/zoom pan의 제스처 충돌 수준 확인
 - info 버튼 탭과 upward swipe가 완전히 같은 reveal/dismiss 상태 전이를 쓰는지 점검
 - details reveal 중에도 상단/하단 chrome이 어느 수준까지 유지되어야 하는지 정책 확정
-- 상단 위치/날짜 title의 placeholder -> 실데이터 전환이 눈에 띄지 않도록 loading 타이밍 또는 fallback 정책 확정
+- 상단 위치/날짜 title의 placeholder -> 실데이터 전환은 개선됐지만 실제 기기에서 다시 확인
 - 필요 시 현재 페이지 표시와 제스처 충돌 UX 미세 조정
 - 사진 세로 중앙 정렬이 최초 진입 시에도 완전히 해결됐는지 수동 검증
 - 하단 `ToolbarItem` 배치가 iPhone 작은 기기에서도 `share+favorite / info / crop+delete` 3구역으로 안정적으로 보이는지 확인

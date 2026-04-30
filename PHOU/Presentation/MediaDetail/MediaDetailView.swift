@@ -14,10 +14,13 @@ struct MediaDetailView: View {
     let transitionNamespace: Namespace.ID?
 
     private let chromeAnimation = Animation.easeInOut(duration: 0.24)
+    private let detailsPrefetchRadius = 1
 
     @State private var usesImmersiveBackground = false
     @State private var showsDetailsPanel = false
     @State private var currentDetails: MediaAssetDetails?
+    @State private var detailsCache: [String: MediaAssetDetails] = [:]
+    @State private var isPreparingDetailsPanel = false
     @State private var shareItems: [Any] = []
     @State private var isPreparingShare = false
     @State private var showsCropUnavailableAlert = false
@@ -40,7 +43,11 @@ struct MediaDetailView: View {
     }
 
     private var displayedDetails: MediaAssetDetails? {
-        currentDetails ?? currentAsset.map(MediaAssetDetails.placeholder)
+        detailsCache[currentAssetID] ?? currentDetails ?? currentAsset.map(MediaAssetDetails.placeholder)
+    }
+
+    private var detailsPanelDetails: MediaAssetDetails? {
+        detailsCache[currentAssetID]
     }
 
     var body: some View {
@@ -119,8 +126,6 @@ struct MediaDetailView: View {
                         .ignoresSafeArea()
 
                     self.content(layout: layout)
-                        .offset(y: showsDetailsPanel ? -layout.mediaLift : 0)
-                        .animation(chromeAnimation, value: showsDetailsPanel)
                         .animation(chromeAnimation, value: usesImmersiveBackground)
 
                     detailsPanel(layout: layout)
@@ -128,7 +133,6 @@ struct MediaDetailView: View {
                 .contentShape(Rectangle())
                 .simultaneousGesture(detailsRevealGesture)
                 .animation(chromeAnimation, value: usesImmersiveBackground)
-                .animation(chromeAnimation, value: showsDetailsPanel)
                 .statusBarHidden(usesImmersiveBackground)
                 .toolbar(usesImmersiveBackground ? .hidden : .visible, for: .navigationBar)
                 .toolbar(usesImmersiveBackground ? .hidden : .visible, for: .bottomBar)
@@ -140,9 +144,12 @@ struct MediaDetailView: View {
                 .navigationBarBackButtonHidden()
                 .onChange(of: currentAssetID) { _, _ in
                     if let currentAsset {
-                        currentDetails = MediaDetailAssetLoader.provisionalSummaryDetails(for: currentAsset)
+                        setCurrentDetails(
+                            detailsCache[currentAsset.id]
+                                ?? MediaDetailAssetLoader.provisionalSummaryDetails(for: currentAsset)
+                        )
                     } else {
-                        currentDetails = nil
+                        setCurrentDetails(nil)
                     }
                 }
                 .onChange(of: usesImmersiveBackground) { _, isImmersive in
@@ -198,21 +205,59 @@ struct MediaDetailView: View {
         }
     }
 
+    @MainActor
     private func refreshCurrentDetails() async {
         guard let currentAsset else {
-            currentDetails = nil
+            setCurrentDetails(nil)
             return
         }
 
-        currentDetails = MediaDetailAssetLoader.provisionalSummaryDetails(for: currentAsset)
-        let assetID = currentAsset.id
-        let summary = await MediaDetailAssetLoader.summaryDetails(for: currentAsset)
-        guard assetID == currentAssetID else { return }
-        currentDetails = summary
+        let index = store.currentIndex
+        if let cached = detailsCache[currentAsset.id] {
+            setCurrentDetails(cached)
+        } else {
+            setCurrentDetails(MediaDetailAssetLoader.provisionalSummaryDetails(for: currentAsset))
+        }
 
-        let details = await MediaDetailAssetLoader.details(for: currentAsset, summary: summary)
-        guard assetID == currentAssetID else { return }
-        currentDetails = details
+        await prefetchDetails(around: index)
+    }
+
+    @MainActor
+    private func prefetchDetails(around centerIndex: Int) async {
+        guard store.items.indices.contains(centerIndex) else { return }
+
+        let lowerBound = max(centerIndex - detailsPrefetchRadius, store.items.startIndex)
+        let upperBound = min(centerIndex + detailsPrefetchRadius, store.items.index(before: store.items.endIndex))
+
+        let assetsToLoad = (lowerBound...upperBound)
+            .map { store.items[$0] }
+            .filter { detailsCache[$0.id] == nil }
+
+        guard !assetsToLoad.isEmpty else { return }
+
+        await withTaskGroup(of: (String, MediaAssetDetails).self) { group in
+            for asset in assetsToLoad {
+                group.addTask {
+                    (asset.id, await MediaDetailAssetLoader.details(for: asset))
+                }
+            }
+
+            for await (assetID, details) in group {
+                detailsCache[assetID] = details
+
+                if assetID == currentAssetID {
+                    setCurrentDetails(details)
+                }
+            }
+        }
+    }
+
+    private func setCurrentDetails(_ details: MediaAssetDetails?) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            currentDetails = details
+        }
     }
 
     private func prepareShare(for asset: PhotoAsset) async {
@@ -228,7 +273,9 @@ struct MediaDetailView: View {
         if showsDetailsPanel {
             closeDetailsPanel()
         } else {
-            openDetailsPanel()
+            Task {
+                await openDetailsPanel()
+            }
         }
     }
 
@@ -382,8 +429,13 @@ struct MediaDetailView: View {
         Button {
             presentInfo()
         } label: {
-            Image(systemName: showsDetailsPanel ? "info.circle.fill" : "info.circle")
+            if isPreparingDetailsPanel {
+                ProgressView()
+            } else {
+                Image(systemName: showsDetailsPanel ? "info.circle.fill" : "info.circle")
+            }
         }
+        .disabled(isPreparingDetailsPanel)
     }
 
     private var cropToolbarButton: some View {
@@ -406,7 +458,7 @@ struct MediaDetailView: View {
     @ViewBuilder
     private func detailsPanel(layout: MediaDetailLayout) -> some View {
         MediaDetailsPanel(
-            details: displayedDetails,
+            details: detailsPanelDetails,
             layout: layout,
             isPresented: showsDetailsPanel,
             onDismiss: closeDetailsPanel
@@ -418,21 +470,34 @@ struct MediaDetailView: View {
             .onEnded { value in
                 guard abs(value.translation.height) > abs(value.translation.width) else { return }
                 if value.translation.height < -72 {
-                    openDetailsPanel()
+                    Task {
+                        await openDetailsPanel()
+                    }
                 } else if value.translation.height > 72, showsDetailsPanel {
                     closeDetailsPanel()
                 }
             }
     }
 
-    private func openDetailsPanel() {
-        if usesImmersiveBackground {
-            withAnimation(chromeAnimation) {
-                usesImmersiveBackground = false
-            }
+    @MainActor
+    private func openDetailsPanel() async {
+        guard !showsDetailsPanel, !isPreparingDetailsPanel else { return }
+
+        guard let currentAsset else { return }
+
+        if detailsCache[currentAsset.id] == nil {
+            isPreparingDetailsPanel = true
+            defer { isPreparingDetailsPanel = false }
+
+            let assetID = currentAsset.id
+            let details = await MediaDetailAssetLoader.details(for: currentAsset)
+            guard assetID == currentAssetID else { return }
+            detailsCache[assetID] = details
+            setCurrentDetails(details)
         }
 
         withAnimation(chromeAnimation) {
+            usesImmersiveBackground = false
             showsDetailsPanel = true
         }
     }

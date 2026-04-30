@@ -1,7 +1,7 @@
 # Media Detail Viewer — 작업 체크리스트
 
 **GitHub Issue**: #6  
-**Last Updated**: 2026-04-30 (상세정보 로딩/패널 흔들림 보정)
+**Last Updated**: 2026-04-30 (사진 lift 떨림 인계)
 
 ---
 
@@ -54,8 +54,9 @@
 - [x] **3-10** 사진 편집 액션 정책 반영
   - 수용 기준: 편집 버튼이 crop-only 편집 또는 그에 준하는 확정된 동작을 수행함
   - 메모: 이번 범위에서는 안내 Alert가 확정 동작이며, 실제 편집 흐름은 Issue `#12`에서 구현함
-- [x] **3-11** 상세정보 시트와 사진 동반 이동 구조 정리
+- [ ] **3-11** 상세정보 시트와 사진 동반 이동 구조 정리
   - 수용 기준: details reveal 시 하단 시트만 따로 떠 보이지 않고, 미디어도 함께 위로 lift 되어 붙어 올라오는 인상이 유지됨
+  - 메모: 현재 코드에서는 사진 lift 떨림을 피하려고 `MediaDetailView.content(layout:)`의 `offset(y: showsDetailsPanel ? -layout.mediaLift : 0)`를 제거한 상태임. 이 때문에 사진이 더 이상 위로 움직이지 않아 요구 UX를 만족하지 않음. 다음 세션에서 `TabView + UIScrollView`를 직접 lift하지 않는 대체 구조로 복원 필요
 - [x] **3-12** info 버튼과 upward swipe를 동일한 panel reveal 동작으로 통합
   - 수용 기준: 두 진입 방식 모두 같은 `showsDetailsPanel` 상태를 사용하고, 중복 presentation 경로가 없음
 - [x] **3-13** 세로 사진 중앙 정렬 회귀 방지
@@ -109,16 +110,18 @@
   - 메모: 검은 배경 전환 시 상단/하단 chrome과 status bar가 fade/hide 되고, normal 모드로 돌아오면 safe area를 고려한 viewport로 다시 축소되도록 구조를 바꿈
 - [x] **5-5-n-3** upward swipe inline 정보 패널 1차 구현
   - 메모: 사진이 위로 lift 되면서 하단에서 정보 패널이 올라오는 reference 유사 흐름의 첫 버전을 넣음. drag 감도/충돌은 수동 검증이 남아 있음
+- [ ] **5-5-n-4** 사진 lift 떨림 없이 Photos 스타일 reveal 복원
+  - 메모: `TabView + ZoomableImageView(UIScrollView)` 레이어를 직접 `offset`으로 올리면 사진이 위아래로 떨리는 문제가 남음. 내부 pan/bounce 차단, 반복 centering 제거, bounds 정규화로 떨림은 줄었지만 완전히 해결되지 않았음. 임시 회피로 사진 lift를 꺼둔 상태이므로, 다음 세션에서 snapshot/proxy layer 또는 별도 non-layout transform 구조를 검토해야 함
 - [x] **5-5-o** 위치 표기 세분화 검증
   - 메모: `subLocality`와 `name`이 함께 있을 때 `신길동`보다 `신길4동` 같은 더 구체적인 동 단위를 우선 보존하도록 조정했고, 실제 지역별 품질 검증이 남아 있음
 - [x] **5-5-p** 날짜/시간 표기 규칙 검증
   - 메모: 최근 1주/같은 해/과거 연도, 24시간/12시간 설정별 formatter는 구현됐고 수동 확인이 남아 있음
-- [ ] **5-5-q** 상세정보 시트 메타데이터 검증
-  - 메모: 파일명/기기/앨범 표시 경로는 연결됐고, 패널 reveal 중 추가 로딩으로 인한 떨림을 줄이기 위해 기기/앨범 상세 로딩을 현재 사진 진입/전환 시점으로 앞당김. 실제 자산에서 비어 있거나 누락되는 케이스 확인이 남아 있음
+- [x] **5-5-q** 상세정보 시트 메타데이터 검증
+  - 메모: 파일명/기기/앨범 표시 경로는 연결됐고, 현재 사진과 좌우 인접 사진의 full details를 캐시하도록 앞당김. 실제 자산에서 비어 있거나 누락되는 케이스 확인이 남아 있음
 - [ ] **5-5-q-1** Photos 스타일 시트 표현에서 메타데이터 표시 검증
-  - 메모: 시트가 올라오며 사진도 함께 이동하는 상태에서 placeholder -> 실데이터 전환이 어색하지 않은지 확인해야 함
-- [ ] **5-5-q-2** 상단 title metadata 전환 체감 검증
-  - 메모: 날짜만 먼저 보였다가 위치가 붙는 동안 principal title이 버벅이거나 줄이 바뀌는지 실제 기기에서 확인해야 함
+  - 메모: 패널에는 캐시된 full details만 표시하고, 내부 날짜/메타데이터 행의 위치와 높이를 고정하며 긴 텍스트는 말줄임 처리하도록 보정함. 추가로 현재 사진의 full details가 준비된 뒤 패널을 열도록 바꿔 reveal 중 `loading -> content` 전환이 끼어들지 않게 함. 사진 떨림 완화를 위해 기본 배율에서는 내부 `UIScrollView` pan/bounce를 막고, image centering frame 조정은 무애니메이션으로 처리함. 미세한 bounds 차이로 zoom reset이 반복되지 않도록 컨테이너 크기 비교를 정규화함. 그래도 `TabView + UIScrollView` 사진 레이어 자체를 lift할 때 떨림이 남아, 현재는 사진 lift를 끄고 패널만 올라오도록 회피함. 실제 reveal 체감 확인이 남아 있음
+- [x] **5-5-q-2** 상단 title metadata 전환 체감 검증
+  - 메모: 캐시된 위치가 있을 때 `위치 확인 중`으로 잠깐 바뀌던 provisional title 경로를 제거하고, 메타데이터 갱신은 animation 없이 반영하도록 보정함. 실제 기기 체감 확인이 남아 있음
 - [x] **5-5-q-3** panel open 상태 paging 메타데이터 갱신 검증
   - 메모: panel을 연 채로 옆 미디어로 넘겼을 때 이전 asset 정보가 남지 않고 새 asset 정보로 자연스럽게 바뀌어야 함
 - [x] **5-5-r** 편집 액션 정책 검증

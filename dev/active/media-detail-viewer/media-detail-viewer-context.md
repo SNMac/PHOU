@@ -117,6 +117,23 @@
 - 다만 이번 후속 구현은 현재 세션에서 code change까지만 반영됐고, compile/runtime verification은 아직 남아 있음
 - model harness(`MediaAssetDetails.provisionalTitleTexts`)는 red-green 확인했지만, 최신 unrestricted `xcodebuild -project PHOU.xcodeproj -target PHOU build`는 SPM 의존성 쪽 `ConcurrencyExtras` / `IssueReporting` 모듈 해석 실패로 멈춤
 - 다음 단계의 핵심은 구조 분리 자체보다 남은 compile/runtime 검증, toolbar 경고 재현 여부, scroll gesture 체감 확인임
+- 2026-04-30 후속 UX 세션에서 상세정보 관련 여러 문제가 추가로 정리됨:
+  - 편집 기능은 GitHub Issue `#12`로 분리하고 Issue #6에서는 안내 Alert 유지
+  - 상세정보 메타데이터는 현재 사진과 좌우 인접 사진의 full details를 미리 캐시하도록 변경
+  - 패널에는 placeholder 상세정보를 넣지 않고 캐시된 full details만 표시
+  - 상세정보 내부 날짜/메타데이터 행은 높이와 아이콘 폭을 고정하고 긴 텍스트는 한 줄 말줄임 처리
+  - 상단 title에서 캐시된 위치가 있을 때도 잠깐 `위치 확인 중`으로 바뀌던 provisional title 경로를 제거
+  - metadata 갱신은 animation 없이 반영하도록 `Transaction.disablesAnimations` 사용
+  - `MediaAssetDetails`는 prefetch task group 결과로 안전하게 전달하기 위해 `Sendable` 채택
+- 같은 세션에서 사진 lift 떨림 문제를 집중 조사함:
+  - 처음에는 modal/panel 떨림으로 보였지만 사용자 확인 결과 실제로는 상세정보 패널이 올라올 때 사진이 위아래로 떨리는 문제였음
+  - 시도 1: 패널 열림 중 details 로딩이 끼어들지 않도록 current asset details를 먼저 로드하고 나서 패널을 열도록 변경
+  - 시도 2: 기본 배율에서는 `ZoomableImageView` 내부 `UIScrollView` pan/bounce를 끄고, 확대 상태에서만 pan을 허용
+  - 시도 3: `centerImage` frame 조정은 `UIView.performWithoutAnimation`으로 감싸고, 같은 bounds에서 반복 layout 시 centerImage를 다시 호출하지 않도록 변경
+  - 시도 4: 1pt 미만 bounds 차이로 zoom reset이 반복되지 않도록 `resolvedContainerSize`를 정규화하고 `isSameSize` 비교 추가
+  - 결과: 떨림은 줄었지만 완전히 사라지지 않았음
+  - 현재 임시 상태: `MediaDetailView`에서 `self.content(layout:)`에 걸던 `offset(y: showsDetailsPanel ? -layout.mediaLift : 0)`를 제거해 사진 lift 자체를 꺼둠. 따라서 지금은 사진이 위로 움직이지 않으며, Photos 스타일 "시트와 사진 동반 이동" 요구사항을 만족하지 못함
+  - 다음 세션 핵심: `TabView + ZoomableImageView(UIScrollView)` 레이어를 직접 offset으로 움직이지 않는 대체 구현이 필요함. 후보는 현재 사진의 snapshot/proxy layer를 lift하고 실제 pager는 고정, 또는 zoomable UIScrollView 바깥의 별도 non-layout transform container를 두는 방식
 
 즉, 현재 구현은 "재사용 가능한 사진/동영상 통합 뷰어"의 첫 버전까지는 도달해 있습니다.
 
@@ -455,9 +472,12 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 
 ## 다음 즉시 작업
 
-1. `UIKitToolbar` hierarchy 경고가 어떤 presentation 조합에서 나는지 재현 조건을 좁히기
-2. 세로 사진이 normal/immersive에서 같은 fit size를 유지하는지 실기기와 작은 시뮬레이터에서 수동 확인
-3. 실기기 지연이 라이브러리 규모, TCA state diff, metadata 로딩, `TabView` 페이지 유지, player 생성 중 어디에서 오는지 profiling/가설 검증
+1. 현재 임시로 제거된 사진 lift를 어떤 구조로 복원할지 결정
+   - 현재 코드 상태: `MediaDetailView`에서 미디어 pager offset을 제거해 사진이 위로 움직이지 않음
+   - 직접 되돌리면 안 되는 후보: `self.content(layout: layout).offset(y: showsDetailsPanel ? -layout.mediaLift : 0)`를 단순 복구하는 방식. 이 방식은 `TabView + ZoomableImageView(UIScrollView)` 조합에서 사진이 위아래로 떨리는 문제가 재현됨
+   - 우선 검토 후보: 현재 사진 snapshot/proxy layer를 별도로 만들고 proxy만 lift, 실제 `TabView`는 고정. 또는 UIKit layout을 건드리지 않는 transform-only wrapper 구조
+2. 사진 lift 복원 후 upward swipe / downward dismiss / horizontal paging / zoom pan 제스처 충돌을 수동 확인
+3. 상세정보 패널 metadata preload/title 안정화/고정 행 레이아웃이 실제 자산에서 유지되는지 확인
 4. 현재 toolbar 기반 chrome 구조가 충분히 안정적인지 확인하고, 필요 시 placement 조합 또는 overlay fallback 범위를 다시 검토
-5. 사진/동영상/줌 상태에서 inline 패널 drag가 pager와 충돌하지 않는지 확인
+5. 실기기 지연이 라이브러리 규모, TCA state diff, metadata 로딩, `TabView` 페이지 유지, player 생성 중 어디에서 오는지 profiling/가설 검증
 6. iPad 레이아웃/회전 및 split view에서 상세 뷰가 깨지지 않는지 확인

@@ -89,11 +89,10 @@ enum MediaDetailAssetLoader {
     static func provisionalSummaryDetails(for asset: PhotoAsset) -> MediaAssetDetails {
         let captureDate = asset.creationDate
         let cachedLocation = locationCache.object(forKey: asset.id as NSString) as String?
-        let hasKnownLocation = cachedLocation.map { $0 != "위치 없음" } ?? false
 
-        let title = MediaAssetDetails.provisionalTitleTexts(
+        let title = MediaAssetDetails.titleTexts(
             date: captureDate,
-            hasLocation: hasKnownLocation
+            locationText: cachedLocation
         )
 
         return MediaAssetDetails(

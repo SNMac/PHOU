@@ -29,7 +29,6 @@ struct MediaDetailsPanel: View {
         .frame(height: layout.panelHeight, alignment: .top)
         .background(Color(uiColor: .systemBackground))
         .offset(y: isPresented ? 0 : layout.panelHiddenOffset)
-        .opacity(isPresented ? 1 : 0.001)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .allowsHitTesting(isPresented)
         .highPriorityGesture(detailsDismissGesture)
@@ -47,32 +46,46 @@ struct MediaDetailsPanel: View {
 private struct MediaInlineInfoContent: View {
     let details: MediaAssetDetails
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(details.captureDateText)
-                    .font(.title2.weight(.semibold))
+    private let horizontalPadding: CGFloat = 24
+    private let iconWidth: CGFloat = 28
+    private let titleHeight: CGFloat = 34
+    private let rowHeight: CGFloat = 30
 
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(details.captureDateText)
+                .font(.title2.weight(.semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, minHeight: titleHeight, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 8) {
                 infoLine(systemImage: "checkmark.square", text: details.filenameText)
                 infoLine(systemImage: "camera", text: details.deviceText)
                 infoLine(systemImage: "arrow.up.left.and.down.right.magnifyingglass", text: details.pixelSizeText)
                 infoLine(systemImage: "mappin.and.ellipse", text: details.locationText)
                 infoLine(systemImage: "rectangle.stack.badge.person.crop", text: details.albumText)
             }
-            .padding(.horizontal, 24)
         }
+        .padding(.horizontal, horizontalPadding)
         .padding(.top, 24)
     }
 
     private func infoLine(systemImage: String, text: String) -> some View {
-        Label {
-            Text(text)
-                .foregroundStyle(.secondary)
-        } icon: {
+        HStack(spacing: 14) {
             Image(systemName: systemImage)
                 .foregroundStyle(.secondary)
+                .frame(width: iconWidth, alignment: .center)
+
+            Text(text)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .font(.body)
+        .frame(height: rowHeight)
+        .accessibilityLabel(text)
     }
 }
 

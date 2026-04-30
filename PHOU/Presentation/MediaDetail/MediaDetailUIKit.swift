@@ -56,7 +56,9 @@ struct ZoomableImageView: UIViewRepresentable {
         scrollView.delegate = context.coordinator
         scrollView.maximumZoomScale = 4
         scrollView.minimumZoomScale = 1
+        scrollView.isScrollEnabled = false
         scrollView.bouncesZoom = true
+        scrollView.bounces = false
         scrollView.alwaysBounceVertical = false
         scrollView.alwaysBounceHorizontal = false
         scrollView.showsVerticalScrollIndicator = false
@@ -111,7 +113,7 @@ struct ZoomableImageView: UIViewRepresentable {
                 requestedSize: containerSize,
                 actualSize: scrollView.bounds.size
             )
-            let needsReset = currentResetID != resetID || lastContainerSize != effectiveContainerSize
+            let needsReset = currentResetID != resetID || !isSameSize(lastContainerSize, effectiveContainerSize)
             currentResetID = resetID
             lastContainerSize = effectiveContainerSize
             self.onSingleTap = onSingleTap
@@ -132,6 +134,7 @@ struct ZoomableImageView: UIViewRepresentable {
         }
 
         func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            scrollView.isScrollEnabled = scrollView.zoomScale > scrollView.minimumZoomScale + 0.001
             centerImage(in: scrollView)
         }
 
@@ -149,6 +152,7 @@ struct ZoomableImageView: UIViewRepresentable {
             scrollView.minimumZoomScale = 1
             scrollView.maximumZoomScale = 4
             scrollView.zoomScale = 1
+            scrollView.isScrollEnabled = false
 
             imageView.frame = CGRect(
                 origin: .zero,
@@ -166,8 +170,7 @@ struct ZoomableImageView: UIViewRepresentable {
                 actualSize: scrollView.bounds.size
             )
 
-            guard effectiveContainerSize != lastContainerSize else {
-                centerImage(in: scrollView)
+            guard !isSameSize(effectiveContainerSize, lastContainerSize) else {
                 return
             }
 
@@ -187,7 +190,14 @@ struct ZoomableImageView: UIViewRepresentable {
         private func resolvedContainerSize(requestedSize: CGSize, actualSize: CGSize) -> CGSize {
             let width = actualSize.width > 0 ? actualSize.width : requestedSize.width
             let height = actualSize.height > 0 ? actualSize.height : requestedSize.height
-            return CGSize(width: max(width, 1), height: max(height, 1))
+            return CGSize(
+                width: max(width.rounded(.toNearestOrAwayFromZero), 1),
+                height: max(height.rounded(.toNearestOrAwayFromZero), 1)
+            )
+        }
+
+        private func isSameSize(_ lhs: CGSize, _ rhs: CGSize) -> Bool {
+            abs(lhs.width - rhs.width) < 1 && abs(lhs.height - rhs.height) < 1
         }
 
         private func centerImage(in scrollView: UIScrollView) {
@@ -201,7 +211,11 @@ struct ZoomableImageView: UIViewRepresentable {
                 ? (boundsSize.height - frameToCenter.height) / 2
                 : 0
 
-            imageView.frame = frameToCenter
+            guard imageView.frame != frameToCenter else { return }
+
+            UIView.performWithoutAnimation {
+                imageView.frame = frameToCenter
+            }
         }
 
         @objc
@@ -215,6 +229,7 @@ struct ZoomableImageView: UIViewRepresentable {
 
             if scrollView.zoomScale > scrollView.minimumZoomScale {
                 scrollView.setZoomScale(scrollView.minimumZoomScale, animated: true)
+                scrollView.isScrollEnabled = false
                 return
             }
 
