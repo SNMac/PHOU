@@ -1,7 +1,7 @@
 # feat: 재사용 가능한 미디어 상세 뷰어 구현
 
 **GitHub Issue**: #6  
-**Last Updated**: 2026-04-27
+**Last Updated**: 2026-04-30
 
 ---
 
@@ -23,7 +23,7 @@
 
 가장 최근 세션에서는 iOS 26 기본 사진 앱의 Liquid Glass 인상을 맞추기 위해 `ToolbarItem` / `ToolbarItemGroup` 기반 system toolbar 전환을 시도했습니다. 사용자의 최신 피드백에 따라 하단도 `ToolbarItem` 기반을 유지합니다. 2026-04-24 커밋(`5d753c6`)에서 iOS 26 미만 경로를 `bottomBar` + `status` placement 조합으로 다시 조정했고, 사용자 확인 기준 의도한 3구역 배치가 맞는 상태입니다.
 
-가장 최근 세션에서 위 리팩토링을 실제로 수행했습니다. `MediaDetailView.swift`는 화면 조립 중심으로 줄였고, 기존 `MediaDetailSupport.swift`는 역할별 파일로 해체했습니다. 현재 우선순위는 더 이상 "어떻게 나눌지"가 아니라, 분리된 구조 위에서 편집 범위 결정과 남은 UX/polish 검증을 이어가는 것입니다.
+가장 최근 세션에서 위 리팩토링을 실제로 수행했습니다. `MediaDetailView.swift`는 화면 조립 중심으로 줄였고, 기존 `MediaDetailSupport.swift`는 역할별 파일로 해체했습니다. 편집 기능은 Issue #6 범위에서는 현재 안내 Alert를 유지하고, 실제 사진 편집/crop-only 구현은 GitHub Issue #12로 분리했습니다. 현재 우선순위는 남은 UX/polish 검증을 이어가는 것입니다.
 
 ---
 
@@ -52,7 +52,7 @@
 | 상세 chrome 구성 | ✅ 안정화 | iOS 26 미만 하단 `ToolbarItem` 배치 맞음. `UIKitToolbar` 경고는 `provisionalSummaryDetails` 메인 스레드 PHAsset 접근 제거 후 함께 사라짐 |
 | 위치/날짜 포맷 | ✅ 1차 구현 완료 | 위치 유무에 따른 2줄 타이틀과 최근성/24시간 설정 기반 포맷이 코드에 반영됨 |
 | 상세정보 표시 | ⚠️ 구조 전환 중 | modal sheet 대신 swipe-up inline info panel로 전환됐고, 실제 체감/세부 레이아웃 검증이 남음 |
-| 편집 기능 | ⚠️ 미정 | 현재는 안내 alert만 표시하며, crop-only 편집 범위를 실제로 구현할지 결정 필요 |
+| 편집 기능 | ✅ 범위 확정 | Issue #6에서는 현재 안내 alert를 유지하고, crop-only 편집 구현은 GitHub Issue #12로 분리 |
 | 파일 구조 | ✅ 1차 리팩토링 완료 | `MediaDetailView.swift`를 456줄까지 줄였고, support 책임은 loader / models / pages / panels / UIKit bridge / PhotoKit bridge / share sheet 파일로 분리됨 |
 
 ### 현재 구현 반영 상태
@@ -70,7 +70,7 @@
 - 위치 표기는 `administrativeArea/locality/subLocality/thoroughfare/name` 조합 기반의 best-effort 상세 문자열로 확장됨
 - 상세정보는 이제 modal sheet 대신 inline panel 후보 구조로 전환 중이며, 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 같은 데이터 소스로 표시함
 - 촬영 기기 표시는 현재 사진 자산에서 `PHAssetResourceManager.requestData` + incremental ImageIO metadata probe 기반 best-effort 구현으로 전환 중이며, `CGImageSourceCreateIncremental(nil)`는 current SDK에서 non-optional 취급으로 맞춰 정리했고, 비디오 및 일부 자산은 `정보 없음` fallback이 남음
-- 편집 버튼은 현재 "공개 시스템 사진 편집 UI를 직접 열 수 없다"는 안내 alert만 연결되어 있음
+- 편집 버튼은 현재 "공개 시스템 사진 편집 UI를 직접 열 수 없다"는 안내 alert를 유지하며, 실제 편집 기능은 GitHub Issue #12에서 다룸
 - `xcodebuild -quiet -project PHOU.xcodeproj -scheme PHOU build` 재성공
 - 테스트 타깃은 아직 없어 reducer/unit test는 미구현
 - 사용자 런타임 보고:
@@ -80,7 +80,7 @@
 - 위 세 로그 중 마지막 두 개는 현재 구현과 직접 연관인지 아직 확인되지 않았고, 첫 번째 `UIKitToolbar` 경고는 최근 toolbar 구조 전환과 연관 가능성이 높아 보이므로 우선 조사 대상임
 - 구조 리팩토링은 1차 완료됨
 - 최신 사용자 확인 기준으로 빌드와 실행 모두 정상 동작함
-- 다음 작업은 편집 범위 확정, 남은 메타데이터 검증, `UIKitToolbar` 경고/잔여 UX 확인처럼 기능 완성도 쪽에 가깝게 이동함
+- 다음 작업은 남은 메타데이터 검증, 제스처 충돌 확인, 실기기 지연 확인, iPad 레이아웃 확인처럼 기능 완성도 쪽에 가깝게 이동함
 
 ---
 
@@ -246,7 +246,8 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 ### 5. 편집 기능은 crop-only부터 재검토
 
 - Apple의 `PHContentEditingController`는 Photos 앱이 호스팅하는 편집 extension UI용 프로토콜이므로, 앱 내부에서 시스템 사진 편집 화면을 직접 띄우는 해법으로 보지 않습니다.
-- 앱 내 편집이 필요하면 전체 편집기를 한 번에 만들기보다 crop-only 기능부터 별도 구현합니다.
+- Issue #6에서는 현재 안내 Alert를 유지합니다.
+- 앱 내 편집이 필요하면 전체 편집기를 한 번에 만들기보다 GitHub Issue #12에서 crop-only 기능부터 별도 구현합니다.
 
 ### 6. 사진/동영상 공통 pager + 타입별 콘텐츠 분리
 
@@ -315,7 +316,7 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 - [x] 위치 표기가 가능한 경우 `시/도 - 동/가/세부지명` 수준까지 더 자세히 표시됨
 - [x] 중앙 타이틀이 위치/날짜/시간을 Photos 앱 유사 규칙으로 2줄 표시함
 - [x] inline 정보 패널이 날짜+시간, 파일명, 촬영 기기, 위치, 소속 앨범을 표시할 데이터 경로를 사용함
-- [ ] 편집 액션 정책이 확정되고 필요 시 crop-only 편집이 동작함
+- [x] 편집 액션 정책이 확정됨: Issue #6에서는 안내 Alert 유지, 실제 crop-only 편집은 GitHub Issue #12에서 처리
 - [ ] 진입/종료 및 mixed media 전환이 시뮬레이터에서 확인됨
 - [ ] immersive 전환 시 chrome fade와 safe-area-aware viewport 확장/축소가 체감상 자연스럽게 동작함
 - [ ] 위로 스와이프하는 inline 정보 패널이 reference UX와 비슷한 흐름으로 동작함

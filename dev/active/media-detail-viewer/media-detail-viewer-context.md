@@ -1,7 +1,7 @@
 # Media Detail Viewer — 컨텍스트 및 핵심 파일
 
 **GitHub Issue**: #6  
-**Last Updated**: 2026-04-27
+**Last Updated**: 2026-04-30
 
 ---
 
@@ -87,7 +87,7 @@
 - 다만 상단 타이틀 데이터는 현재 summary metadata 비동기 로딩 결과에 의존해, 상세 진입 직후 날짜만 먼저 보였다가 잠시 뒤 위치가 붙으면서 타이틀 폭과 줄 배치가 미세하게 흔들리는 체감 이슈가 있음
 - 상세정보는 더 이상 `sheet(item:)` 기반 modal이 아니라, 위로 스와이프하거나 info 버튼으로 여는 inline panel 구조로 재설계 중
 - 파일명은 `PHAssetResource.originalFilename`, 소속 앨범은 `PHAssetCollection.fetchAssetCollectionsContaining`, 촬영 기기는 사진 자산의 TIFF metadata 추출을 사용함
-- 편집 버튼은 현재 alert만 띄우고 있으며 crop 또는 다른 실제 편집 기능은 없음
+- 편집 버튼은 현재 안내 alert를 유지함. crop 또는 다른 실제 편집 기능은 GitHub Issue `#12` `미디어 상세 뷰 사진 편집 기능 구현`으로 분리됨
 - 배경은 기본 `systemBackground`이고 단일 탭으로 black immersive background를 토글 가능
 - 사진은 `UIScrollView` 레벨의 double-tap zoom을 추가
 - 가장 최근 리팩토링 세션에서 `MediaDetailView.swift` / `MediaDetailSupport.swift` 책임 분리를 실제로 수행함
@@ -245,7 +245,7 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 - 특히 principal title은 "날짜만 먼저 표시 -> 위치까지 합쳐 재배치" 흐름이 눈에 띄지 않도록 초기 표시 정책과 로딩 타이밍을 다시 설계해야 함
 - `PHAssetOriginalMetadataProperties` 성능 경고는 detached task/caching 이후에도 남아 있어, 보다 근본적인 PhotoKit metadata 접근 전략 재검토가 필요함
 - 상단/하단 chrome은 커스텀 디자인 대신 기본 SwiftUI 요소를 사용해야 함
-- 편집은 `PHContentEditingController` 기반 시스템 편집 호출을 기대하지 않고, 앱 내 구현이 필요하면 crop-only부터 시작
+- 편집은 `PHContentEditingController` 기반 시스템 편집 호출을 기대하지 않음. Issue #6에서는 안내 Alert를 유지하고, 앱 내 crop-only 구현은 GitHub Issue `#12`에서 다룸
 - 위치는 가능한 경우 `광역/시군구 - 동/가/세부지명` 수준까지 더 자세히 표시
 - 상단 중앙 타이틀은 위치/날짜/시간 2줄 구조로 재설계
 - 상세정보 시트는 날짜+시간, 사진 이름(파일명), 촬영 기기, 위치, 소속 앨범을 표시해야 함
@@ -255,6 +255,7 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 ### 6. API / 데이터 가용성 메모
 
 - 확인됨: Apple Developer Documentation 기준 `PHContentEditingController`는 Photos 앱이 호스팅하는 photo editing extension UI용 프로토콜임. 즉, 우리 앱 내부에서 시스템 사진 편집 화면을 그대로 여는 해법으로 보면 안 됨.
+- 확인됨: 사용자 결정에 따라 Issue #6에서는 편집 버튼을 현재 안내 Alert로 유지하고, 실제 사진 편집/crop-only 구현은 GitHub Issue `#12`로 분리함.
 - 확인됨: 파일명은 `PHAssetResource.assetResources(for:)`의 `originalFilename`으로 가져올 수 있음.
 - 확인됨: 소속 앨범은 `PHAssetCollection.fetchAssetCollectionsContaining(_:with:options:)` 또는 album fetch 결과 비교로 조회 가능한 방향이 있음.
 - 이 세션 이전 구현 기준 확인됨: 사진 자산에 대해 `requestImageDataAndOrientation` + `CGImageSourceCopyPropertiesAtIndex` + TIFF metadata(`Make`/`Model`)로 촬영 기기를 추출했음.
@@ -444,7 +445,6 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 
 - 촬영 기기명을 사진/동영상 모두에서 같은 수준으로 제공할 수 있는지, 아니면 자산 타입별 fallback 정책이 필요한지
 - 상세정보 시트의 소속 앨범을 모든 앨범 제목 리스트로 보여줄지, 사용자에게 의미 있는 대표 앨범만 보여줄지
-- 편집 버튼이 즉시 crop 화면으로 들어갈지, 추후 기능 확장을 고려해 별도 action sheet를 둘지
 - 현재 toolbar 기반 chrome 구조(상단 navigation toolbar + 하단 bottomBar/status)가 `fullScreenCover` + zoom transition + inline panel 조합에서 hierarchy 경고 없이 유지 가능한지
 - 현재 분리된 MediaDetail 파일 구조가 장기적으로도 유지보수하기 좋은지
 - inline 정보 패널 drag가 pager/zoom과 실제 사용에서 충돌하지 않는지
@@ -460,4 +460,4 @@ State(items: IdentifiedArrayOf<PhotoAsset>, selectedID: PhotoAsset.ID)
 3. 실기기 지연이 라이브러리 규모, TCA state diff, metadata 로딩, `TabView` 페이지 유지, player 생성 중 어디에서 오는지 profiling/가설 검증
 4. 현재 toolbar 기반 chrome 구조가 충분히 안정적인지 확인하고, 필요 시 placement 조합 또는 overlay fallback 범위를 다시 검토
 5. 사진/동영상/줌 상태에서 inline 패널 drag가 pager와 충돌하지 않는지 확인
-6. 편집 액션 범위를 crop-only로 확정할지 판단하고, 확정 시 UI/저장 경로를 설계
+6. iPad 레이아웃/회전 및 split view에서 상세 뷰가 깨지지 않는지 확인

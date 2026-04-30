@@ -28,11 +28,6 @@ struct MediaDetailsPanel: View {
         .frame(maxWidth: .infinity)
         .frame(height: layout.panelHeight, alignment: .top)
         .background(Color(uiColor: .systemBackground))
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.secondary.opacity(0.16))
-                .frame(height: 0.5)
-        }
         .offset(y: isPresented ? 0 : layout.panelHiddenOffset)
         .opacity(isPresented ? 1 : 0.001)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)

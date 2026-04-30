@@ -150,10 +150,6 @@ struct MediaDetailView: View {
                         showsDetailsPanel = false
                     }
                 }
-                .task(id: detailsPanelTaskID) {
-                    guard showsDetailsPanel else { return }
-                    await loadExpandedDetails()
-                }
             }
         }
 
@@ -210,16 +206,11 @@ struct MediaDetailView: View {
 
         currentDetails = MediaDetailAssetLoader.provisionalSummaryDetails(for: currentAsset)
         let assetID = currentAsset.id
-        let details = await MediaDetailAssetLoader.summaryDetails(for: currentAsset)
+        let summary = await MediaDetailAssetLoader.summaryDetails(for: currentAsset)
         guard assetID == currentAssetID else { return }
-        currentDetails = details
-    }
+        currentDetails = summary
 
-    private func loadExpandedDetails() async {
-        guard let currentAsset else { return }
-
-        let assetID = currentAsset.id
-        let details = await MediaDetailAssetLoader.details(for: currentAsset)
+        let details = await MediaDetailAssetLoader.details(for: currentAsset, summary: summary)
         guard assetID == currentAssetID else { return }
         currentDetails = details
     }
@@ -450,10 +441,6 @@ struct MediaDetailView: View {
         withAnimation(chromeAnimation) {
             showsDetailsPanel = false
         }
-    }
-
-    private var detailsPanelTaskID: String {
-        "\(currentAssetID)-\(showsDetailsPanel)"
     }
 
 }

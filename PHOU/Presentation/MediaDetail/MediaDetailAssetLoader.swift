@@ -111,12 +111,16 @@ enum MediaDetailAssetLoader {
         )
     }
 
-    static func details(for asset: PhotoAsset) async -> MediaAssetDetails {
+    static func details(for asset: PhotoAsset, summary existingSummary: MediaAssetDetails? = nil) async -> MediaAssetDetails {
         guard let phAsset = self.asset(for: asset.id) else {
             return .placeholder(for: asset)
         }
 
-        let summary = await summaryDetails(for: asset)
+        let summary = if let existingSummary {
+            existingSummary
+        } else {
+            await summaryDetails(for: asset)
+        }
         async let deviceTextTask = resolvedDeviceText(for: asset.id)
         async let albumTextTask = resolvedAlbumText(for: phAsset)
 
