@@ -137,8 +137,12 @@
   - 검증: `MediaDetailRevealGeometry.pageContentLiftOffset` 일회성 Swift harness red-green 통과, Xcode MCP `BuildProject` 성공. 사용자 확인 기준 상세 정보 패널 reveal 중 사진 위아래 떨림은 사라짐
   - 후속 관찰 1: 상세 정보 패널 dismiss 시 사진이 부드럽게 내려오다가 마지막에 화면 중앙으로 jump 하듯 이동함. 의도는 dismiss 전체 구간에서 사진이 화면 중앙 위치로 부드럽게 돌아오는 것임
   - 후속 관찰 2: 사진을 화면이 꽉 차게 확대한 뒤 상세 정보 패널을 띄우면 위 jump 현상은 재현되지 않음. 즉 기본 배율/fit 상태에서 center/lift 복귀 애니메이션과 `ZoomableImageView` centering 경로가 마지막 순간 충돌하는 것으로 추정
-  - 후속 관찰 3: 확대 상태에서 드래그 후 손을 떼면 `UIScrollView` pan 관성이 다소 강해 사용자가 의도한 위치보다 더 이동함. zoom 상태 pan deceleration을 낮추는 보정이 필요함
-  - 다음 세션 핵심: dismiss 시 page content lift가 0으로 돌아가는 애니메이션과 `ZoomableImageView`의 centerImage/reset 경로가 같은 타이밍에 튀지 않도록 분리하고, 확대 pan의 deceleration/bounce 감도를 낮추는 것
+  - 이번 수정에서 `MediaDetailRevealGeometry.shouldSmoothCenteringAfterDetailsDismissal(...)`를 추가하고, `ZoomableImageView`에 `isDetailsPanelPresented`를 전달함. 패널이 열린 상태에서 닫히고, 현재 zoomScale이 minimum인 경우에만 짧은 smooth centering window를 열어 `centerImage` frame 보정을 애니메이션으로 처리함
+  - 사용자 재확인에서 사진이 저 멀리 위로 튀었다가 가운데로 돌아오는 새 증상이 확인됨. 원인은 `resetZoom`이 `imageView.frame`을 먼저 `.zero` origin으로 세팅한 뒤 center 보정을 애니메이션하면서 top-origin 중간 상태가 보인 것으로 판단함. `MediaDetailRevealGeometry.centeredFrame(...)`를 추가하고 `resetZoom`도 처음부터 centered frame을 넣도록 수정함
+  - 확대 상태 drag 관성은 `LayoutAwareScrollView.decelerationRate = .fast`로 낮춤. 사용자가 보고한 "드래그 후 의도보다 더 이동하는" 체감 완화를 목표로 한 최소 보정임
+  - 검증: dismissal/centered-frame helper 일회성 Swift harness red-green 통과, Xcode MCP `BuildProject` 성공
+  - 사용자 재확인 결과: "사진이 저 멀리 위로 튀었다가 가운데로 돌아오는" 새 증상은 없어졌지만, 원래 문제인 "상세 정보 패널 dismiss 중 부드럽게 내려오다가 마지막에 화면 가운데 위치로 jump"하는 현상은 다시 재현됨. 따라서 이번 smooth centering / centered frame 시도는 root cause 해결이 아니며, 5-5-n-5는 미해결 상태로 유지함
+  - 다음 접근 후보: `ZoomableImageView` 내부 centering을 애니메이션하는 방식보다, page content lift 값과 image centering offset을 같은 단일 SwiftUI/geometry progress에서 계산하거나, dismiss 완료 전까지 `UIScrollView` layout/center 보정을 지연하는 방식을 검토해야 함
 
 즉, 현재 구현은 "재사용 가능한 사진/동영상 통합 뷰어"의 첫 버전까지는 도달해 있습니다.
 

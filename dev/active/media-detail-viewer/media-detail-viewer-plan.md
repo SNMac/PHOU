@@ -198,12 +198,15 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
   - 최신 코드 상태: `TabView` 자체는 고정하고 각 `MediaPageView` content에 `visualEffect` 기반 lift를 적용함
   - 금지할 가능성이 높은 접근: paging을 담당하는 `TabView`/UIKit page container 자체에 직접 animated `offset` 적용
   - 사용자 확인: 상세 정보 패널 reveal 중 사진 떨림은 사라짐
-  - 남은 확인: panel dismiss 마지막에 기본 배율 사진이 중앙으로 jump 하듯 움직이는 현상 제거. 확대 상태에서는 재현되지 않아 기본 fit/centering 복귀 경로를 우선 조사
+  - 최신 보정: 기본 배율 dismiss 전환에서만 `ZoomableImageView.centerImage`를 짧게 애니메이션하도록 `isDetailsPanelPresented` 전이를 전달했고, reset 시 처음부터 centered frame을 넣도록 바꿈
+  - 사용자 확인: 위로 크게 튀는 새 증상은 없어졌지만, panel dismiss 마지막에 기본 배율 사진이 중앙으로 jump 하듯 움직이는 원래 현상은 여전히 재현됨
+  - 다음 후보: `UIScrollView` 내부 centering 애니메이션 대신 page lift와 image center offset을 같은 geometry progress에서 계산하거나, dismiss 완료 전까지 centering 보정을 지연
   - fallback 후보: 현재 사진 snapshot/proxy layer를 따로 lift하거나, zoomable view 외부에 UIKit layout과 분리된 transform 전용 wrapper 도입
 - 시뮬레이터/실기기에서 실제 진입/스와이프/동영상 재생 수동 확인
 - 복원 후 bottom sheet 표현에서 사진과 시트의 동반 이동감이 레퍼런스처럼 느껴지는지 수동 확인
 - upward swipe / downward dismiss 감도와 horizontal media paging/zoom pan의 제스처 충돌 수준 확인
 - 확대 상태 사진 pan의 관성이 강해 사용자가 의도한 위치보다 더 이동하는 현상 완화
+  - 최신 보정: `UIScrollView.decelerationRate = .fast` 적용. 실제 관성 체감 확인 필요
 - info 버튼 탭과 upward swipe가 완전히 같은 reveal/dismiss 상태 전이를 쓰는지 점검
 - details reveal 중에도 상단/하단 chrome이 어느 수준까지 유지되어야 하는지 정책 확정
 - 상단 위치/날짜 title의 placeholder -> 실데이터 전환은 개선됐지만 실제 기기에서 다시 확인

@@ -113,7 +113,7 @@
 - [x] **5-5-n-4** 사진 lift 떨림 없이 Photos 스타일 reveal 복원
   - 메모: `TabView + ZoomableImageView(UIScrollView)` 레이어를 직접 `offset`으로 올리면 사진이 위아래로 떨리는 문제가 남았음. 최신 수정은 pager 자체를 움직이지 않고 각 page content에 `visualEffect` translation을 적용하는 방식으로 lift를 복원함. `MediaDetailRevealGeometry` one-off harness와 Xcode MCP 빌드는 통과했고, 사용자 확인 기준 상세 정보 패널 reveal 중 사진 떨림은 사라짐
 - [ ] **5-5-n-5** 상세 정보 dismiss 시 사진 중앙 복귀 jump 제거
-  - 메모: 패널 dismiss 중 사진은 부드럽게 내려오다가 마지막 순간 화면 중앙으로 jump 하듯 이동함. 의도는 lift offset이 0으로 돌아가는 전 구간에서 사진이 부드럽게 원래 중앙 위치로 복귀하는 것임. 사진을 화면이 꽉 차게 확대한 뒤 패널을 띄우면 재현되지 않으므로, 기본 배율에서 `visualEffect` lift 종료와 `ZoomableImageView.centerImage`/layout 경로가 마지막 타이밍에 충돌하는지 우선 확인
+  - 메모: 패널 dismiss 중 사진은 부드럽게 내려오다가 마지막 순간 화면 중앙으로 jump 하듯 이동함. 의도는 lift offset이 0으로 돌아가는 전 구간에서 사진이 부드럽게 원래 중앙 위치로 복귀하는 것임. 최신 수정에서 `isDetailsPanelPresented` 전이를 `ZoomableImageView`까지 전달하고, true -> false 전환이면서 minimum zoom인 경우에만 다음 `centerImage` 보정을 애니메이션 처리하도록 변경함. 이후 사진이 위로 크게 튀는 새 증상은 `resetZoom`의 `.zero` origin 중간 프레임이 보이는 문제로 판단해, `MediaDetailRevealGeometry.centeredFrame(...)`를 추가하고 reset 시 처음부터 centered frame을 넣도록 보정함. helper harness와 Xcode 빌드는 통과했지만, 사용자 재확인 기준 원래의 마지막 중앙 jump는 여전히 재현됨. 다음 시도는 `UIScrollView` 내부 centering 애니메이션이 아니라 page lift와 center offset을 같은 geometry progress로 묶거나 dismiss 완료 전 centering 보정을 지연하는 방향이 유력함
 - [x] **5-5-o** 위치 표기 세분화 검증
   - 메모: `subLocality`와 `name`이 함께 있을 때 `신길동`보다 `신길4동` 같은 더 구체적인 동 단위를 우선 보존하도록 조정했고, 실제 지역별 품질 검증이 남아 있음
 - [x] **5-5-p** 날짜/시간 표기 규칙 검증
@@ -135,7 +135,7 @@
 - [ ] **5-5-s-2** vertical/horizontal/zoom 제스처 충돌 수동 검증
   - 메모: 특히 세로 스와이프가 details reveal로 해석될 때, `TabView` paging과 확대된 사진 pan을 방해하지 않는지 확인 필요
 - [ ] **5-5-s-4** 확대 상태 사진 pan 관성 완화
-  - 메모: 확대 상태에서 사진을 드래그하다가 터치를 떼면 `UIScrollView` pan 관성이 강하게 남아 의도한 위치보다 더 이동함. `ZoomableImageView`의 deceleration/bounce 관련 설정을 조정해 Photos 앱에 가까운 낮은 관성으로 보정 필요
+  - 메모: 확대 상태에서 사진을 드래그하다가 터치를 떼면 `UIScrollView` pan 관성이 강하게 남아 의도한 위치보다 더 이동함. 최신 수정에서 `LayoutAwareScrollView.decelerationRate = .fast`를 적용해 관성을 낮춤. 실제 체감 확인 후 완료 여부 판단 필요
 - [x] **5-5-s-3** 빌드 검증
   - 메모: Xcode MCP (`mcp__xcode__BuildProject`) 도입으로 이번 세션부터 scheme 부재/SPM 제약 없이 Xcode에서 직접 빌드 성공 확인 가능. 모든 이번 세션 수정 후 빌드 성공 확인됨.
 - [x] **5-5-t** iPhone 13 mini 레이아웃 재검증

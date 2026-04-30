@@ -8,6 +8,7 @@
 import SwiftUI
 import UIKit
 import AVFoundation
+import QuartzCore
 
 struct PlayerLayerView: UIViewRepresentable {
     let player: AVPlayer
@@ -44,6 +45,7 @@ struct ZoomableImageView: UIViewRepresentable {
     let image: UIImage
     let resetID: String
     let containerSize: CGSize
+    let isDetailsPanelPresented: Bool
     let backgroundColor: UIColor
     let onSingleTap: () -> Void
 
@@ -56,6 +58,7 @@ struct ZoomableImageView: UIViewRepresentable {
         scrollView.delegate = context.coordinator
         scrollView.maximumZoomScale = 4
         scrollView.minimumZoomScale = 1
+        scrollView.decelerationRate = .fast
         scrollView.isScrollEnabled = false
         scrollView.bouncesZoom = true
         scrollView.bounces = false
@@ -75,6 +78,7 @@ struct ZoomableImageView: UIViewRepresentable {
             image: image,
             resetID: resetID,
             containerSize: containerSize,
+            isDetailsPanelPresented: isDetailsPanelPresented,
             backgroundColor: backgroundColor,
             onSingleTap: onSingleTap,
             in: scrollView
@@ -85,6 +89,8 @@ struct ZoomableImageView: UIViewRepresentable {
         private let imageView = UIImageView()
         private var currentResetID: String?
         private var lastContainerSize: CGSize = .zero
+        private var lastDetailsPanelPresented: Bool?
+        private var smoothCenteringDeadline: CFTimeInterval = 0
         private var onSingleTap: (() -> Void)?
 
         func configure(_ scrollView: UIScrollView) {
@@ -104,6 +110,7 @@ struct ZoomableImageView: UIViewRepresentable {
             image: UIImage,
             resetID: String,
             containerSize: CGSize,
+            isDetailsPanelPresented: Bool,
             backgroundColor: UIColor,
             onSingleTap: @escaping () -> Void,
             in scrollView: LayoutAwareScrollView
@@ -117,6 +124,16 @@ struct ZoomableImageView: UIViewRepresentable {
             currentResetID = resetID
             lastContainerSize = effectiveContainerSize
             self.onSingleTap = onSingleTap
+            scrollView.decelerationRate = .fast
+
+            if MediaDetailRevealGeometry.shouldSmoothCenteringAfterDetailsDismissal(
+                wasDetailsPresented: lastDetailsPanelPresented,
+                isDetailsPresented: isDetailsPanelPresented,
+                isAtMinimumZoom: isAtMinimumZoom(in: scrollView)
+            ) {
+                smoothCenteringDeadline = CACurrentMediaTime() + 0.35
+            }
+            lastDetailsPanelPresented = isDetailsPanelPresented
 
             imageView.image = image
             scrollView.backgroundColor = backgroundColor
@@ -135,7 +152,7 @@ struct ZoomableImageView: UIViewRepresentable {
 
         func scrollViewDidZoom(_ scrollView: UIScrollView) {
             scrollView.isScrollEnabled = scrollView.zoomScale > scrollView.minimumZoomScale + 0.001
-            centerImage(in: scrollView)
+            centerImage(in: scrollView, animated: shouldAnimateCentering(in: scrollView))
         }
 
         private func resetZoom(in scrollView: UIScrollView, image: UIImage, containerSize: CGSize) {
@@ -154,14 +171,14 @@ struct ZoomableImageView: UIViewRepresentable {
             scrollView.zoomScale = 1
             scrollView.isScrollEnabled = false
 
-            imageView.frame = CGRect(
-                origin: .zero,
-                size: fittedSize
+            imageView.frame = MediaDetailRevealGeometry.centeredFrame(
+                contentSize: fittedSize,
+                boundsSize: scrollView.bounds.size
             )
             scrollView.contentSize = imageView.frame.size
             scrollView.contentOffset = .zero
             scrollView.layoutIfNeeded()
-            centerImage(in: scrollView)
+            centerImage(in: scrollView, animated: shouldAnimateCentering(in: scrollView))
         }
 
         private func handleLayout(of scrollView: UIScrollView) {
@@ -180,7 +197,7 @@ struct ZoomableImageView: UIViewRepresentable {
                 scrollView.zoomScale <= scrollView.minimumZoomScale + 0.001,
                 let image = imageView.image
             else {
-                centerImage(in: scrollView)
+                centerImage(in: scrollView, animated: shouldAnimateCentering(in: scrollView))
                 return
             }
 
@@ -200,21 +217,36 @@ struct ZoomableImageView: UIViewRepresentable {
             abs(lhs.width - rhs.width) < 1 && abs(lhs.height - rhs.height) < 1
         }
 
-        private func centerImage(in scrollView: UIScrollView) {
-            let boundsSize = scrollView.bounds.size
-            var frameToCenter = imageView.frame
+        private func isAtMinimumZoom(in scrollView: UIScrollView) -> Bool {
+            scrollView.zoomScale <= scrollView.minimumZoomScale + 0.001
+        }
 
-            frameToCenter.origin.x = frameToCenter.width < boundsSize.width
-                ? (boundsSize.width - frameToCenter.width) / 2
-                : 0
-            frameToCenter.origin.y = frameToCenter.height < boundsSize.height
-                ? (boundsSize.height - frameToCenter.height) / 2
-                : 0
+        private func shouldAnimateCentering(in scrollView: UIScrollView) -> Bool {
+            isAtMinimumZoom(in: scrollView) && CACurrentMediaTime() <= smoothCenteringDeadline
+        }
+
+        private func centerImage(in scrollView: UIScrollView, animated: Bool = false) {
+            let boundsSize = scrollView.bounds.size
+            let frameToCenter = MediaDetailRevealGeometry.centeredFrame(
+                contentSize: imageView.frame.size,
+                boundsSize: boundsSize
+            )
 
             guard imageView.frame != frameToCenter else { return }
 
-            UIView.performWithoutAnimation {
-                imageView.frame = frameToCenter
+            let changes = {
+                self.imageView.frame = frameToCenter
+            }
+
+            if animated {
+                UIView.animate(
+                    withDuration: 0.24,
+                    delay: 0,
+                    options: [.beginFromCurrentState, .allowUserInteraction, .curveEaseInOut],
+                    animations: changes
+                )
+            } else {
+                UIView.performWithoutAnimation(changes)
             }
         }
 

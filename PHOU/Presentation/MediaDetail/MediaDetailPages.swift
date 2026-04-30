@@ -14,6 +14,7 @@ struct MediaPageView: View {
     let viewportSize: CGSize
     let isActive: Bool
     let shouldLoad: Bool
+    let isDetailsPanelPresented: Bool
     let backgroundColor: UIColor
     let onSingleTap: () -> Void
 
@@ -24,6 +25,7 @@ struct MediaPageView: View {
                 assetID: asset.id,
                 containerSize: viewportSize,
                 shouldLoad: shouldLoad,
+                isDetailsPanelPresented: isDetailsPanelPresented,
                 backgroundColor: backgroundColor,
                 onSingleTap: onSingleTap
             )
@@ -42,6 +44,7 @@ private struct MediaImagePageView: View {
     let assetID: String
     let containerSize: CGSize
     let shouldLoad: Bool
+    let isDetailsPanelPresented: Bool
     let backgroundColor: UIColor
     let onSingleTap: () -> Void
 
@@ -54,6 +57,7 @@ private struct MediaImagePageView: View {
                     image: image,
                     resetID: assetID,
                     containerSize: containerSize,
+                    isDetailsPanelPresented: isDetailsPanelPresented,
                     backgroundColor: backgroundColor,
                     onSingleTap: onSingleTap
                 )

@@ -187,6 +187,7 @@ struct MediaDetailView: View {
                     viewportSize: layout.viewportSize,
                     isActive: index == store.currentIndex,
                     shouldLoad: abs(index - store.currentIndex) <= 1,
+                    isDetailsPanelPresented: showsDetailsPanel,
                     backgroundColor: usesImmersiveBackground ? .black : .systemBackground,
                     onSingleTap: toggleBackground
                 )
