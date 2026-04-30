@@ -131,9 +131,14 @@
   - 시도 2: 기본 배율에서는 `ZoomableImageView` 내부 `UIScrollView` pan/bounce를 끄고, 확대 상태에서만 pan을 허용
   - 시도 3: `centerImage` frame 조정은 `UIView.performWithoutAnimation`으로 감싸고, 같은 bounds에서 반복 layout 시 centerImage를 다시 호출하지 않도록 변경
   - 시도 4: 1pt 미만 bounds 차이로 zoom reset이 반복되지 않도록 `resolvedContainerSize`를 정규화하고 `isSameSize` 비교 추가
-  - 결과: 떨림은 줄었지만 완전히 사라지지 않았음
-  - 현재 임시 상태: `MediaDetailView`에서 `self.content(layout:)`에 걸던 `offset(y: showsDetailsPanel ? -layout.mediaLift : 0)`를 제거해 사진 lift 자체를 꺼둠. 따라서 지금은 사진이 위로 움직이지 않으며, Photos 스타일 "시트와 사진 동반 이동" 요구사항을 만족하지 못함
-  - 다음 세션 핵심: `TabView + ZoomableImageView(UIScrollView)` 레이어를 직접 offset으로 움직이지 않는 대체 구현이 필요함. 후보는 현재 사진의 snapshot/proxy layer를 lift하고 실제 pager는 고정, 또는 zoomable UIScrollView 바깥의 별도 non-layout transform container를 두는 방식
+  - 결과: 떨림은 줄었지만 완전히 사라지지 않았고, 한동안 사진 lift를 꺼둔 상태였음
+  - 이번 후속 수정에서 `PHOU/Presentation/MediaDetail/MediaDetailRevealGeometry.swift`를 추가하고, `MediaDetailView.content(layout:)`에서 `TabView` 자체는 고정한 채 각 `MediaPageView` 렌더 표면에만 `visualEffect { content.offset(...) }`를 적용하도록 변경함
+  - 의도: paging을 담당하는 `TabView`/UIKit page container를 움직이지 않고, page content의 non-layout translation만 애니메이션해 `ZoomableImageView(UIScrollView)`의 bounds/layout 재계산을 줄이는 것
+  - 검증: `MediaDetailRevealGeometry.pageContentLiftOffset` 일회성 Swift harness red-green 통과, Xcode MCP `BuildProject` 성공. 사용자 확인 기준 상세 정보 패널 reveal 중 사진 위아래 떨림은 사라짐
+  - 후속 관찰 1: 상세 정보 패널 dismiss 시 사진이 부드럽게 내려오다가 마지막에 화면 중앙으로 jump 하듯 이동함. 의도는 dismiss 전체 구간에서 사진이 화면 중앙 위치로 부드럽게 돌아오는 것임
+  - 후속 관찰 2: 사진을 화면이 꽉 차게 확대한 뒤 상세 정보 패널을 띄우면 위 jump 현상은 재현되지 않음. 즉 기본 배율/fit 상태에서 center/lift 복귀 애니메이션과 `ZoomableImageView` centering 경로가 마지막 순간 충돌하는 것으로 추정
+  - 후속 관찰 3: 확대 상태에서 드래그 후 손을 떼면 `UIScrollView` pan 관성이 다소 강해 사용자가 의도한 위치보다 더 이동함. zoom 상태 pan deceleration을 낮추는 보정이 필요함
+  - 다음 세션 핵심: dismiss 시 page content lift가 0으로 돌아가는 애니메이션과 `ZoomableImageView`의 centerImage/reset 경로가 같은 타이밍에 튀지 않도록 분리하고, 확대 pan의 deceleration/bounce 감도를 낮추는 것
 
 즉, 현재 구현은 "재사용 가능한 사진/동영상 통합 뷰어"의 첫 버전까지는 도달해 있습니다.
 

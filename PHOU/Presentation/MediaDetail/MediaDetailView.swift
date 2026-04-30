@@ -177,6 +177,11 @@ struct MediaDetailView: View {
             )
         ) {
             ForEach(Array(store.items.enumerated()), id: \.element.id) { index, asset in
+                let pageLiftOffset = MediaDetailRevealGeometry.pageContentLiftOffset(
+                    isDetailsPresented: showsDetailsPanel,
+                    mediaLift: layout.mediaLift
+                )
+
                 MediaPageView(
                     asset: asset,
                     viewportSize: layout.viewportSize,
@@ -188,6 +193,10 @@ struct MediaDetailView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: layout.viewportSize.height)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .visualEffect { content, _ in
+                    content.offset(y: pageLiftOffset)
+                }
+                .animation(chromeAnimation, value: pageLiftOffset)
                 .tag(index)
             }
         }

@@ -53,7 +53,7 @@
 | 사진 초기 세로 정렬 | ⚠️ 보정 후 재검증 필요 | `LayoutAwareScrollView` 기반 재-centering 경로를 추가했지만 실제 사용자 재현이 사라졌는지는 아직 수동 확인 필요 |
 | 상세 chrome 구성 | ✅ 안정화 | iOS 26 미만 하단 `ToolbarItem` 배치 맞음. `UIKitToolbar` 경고는 `provisionalSummaryDetails` 메인 스레드 PHAsset 접근 제거 후 함께 사라짐 |
 | 위치/날짜 포맷 | ✅ 1차 구현 완료 | 위치 유무에 따른 2줄 타이틀과 최근성/24시간 설정 기반 포맷이 코드에 반영됨 |
-| 상세정보 표시 | ⚠️ 구조 전환 중 | metadata preload/title 안정화/내부 행 고정은 반영됨. 현재는 사진 lift 떨림 회피를 위해 미디어 동반 이동이 꺼져 있어 Photos 스타일 reveal 복원이 필요 |
+| 상세정보 표시 | ⚠️ 구조 전환 중 | metadata preload/title 안정화/내부 행 고정은 반영됨. 최신 수정에서 `TabView` 자체 대신 각 page content에 `visualEffect` lift를 적용해 미디어 동반 이동을 복원했고, 사용자 확인 기준 reveal 중 사진 떨림은 사라짐. dismiss 마지막 jump와 확대 pan 관성 보정은 남음 |
 | 편집 기능 | ✅ 범위 확정 | Issue #6에서는 현재 안내 alert를 유지하고, crop-only 편집 구현은 GitHub Issue #12로 분리 |
 | 파일 구조 | ✅ 1차 리팩토링 완료 | `MediaDetailView.swift`를 456줄까지 줄였고, support 책임은 loader / models / pages / panels / UIKit bridge / PhotoKit bridge / share sheet 파일로 분리됨 |
 
@@ -195,12 +195,15 @@ GalleryView / AlbumPhotoGridView / 이후 다른 화면
 ### 현재 남은 후속 작업
 
 - 사진 lift 떨림 없이 Photos 스타일 reveal 복원
-  - 현재 임시 상태: 사진 lift를 제거해 패널만 올라옴
-  - 금지할 가능성이 높은 접근: `TabView + ZoomableImageView(UIScrollView)` 자체에 직접 animated `offset` 적용
-  - 검토 후보: 현재 사진 snapshot/proxy layer를 따로 lift하고 실제 pager는 고정, 또는 zoomable view 외부에 UIKit layout과 분리된 transform 전용 wrapper 도입
+  - 최신 코드 상태: `TabView` 자체는 고정하고 각 `MediaPageView` content에 `visualEffect` 기반 lift를 적용함
+  - 금지할 가능성이 높은 접근: paging을 담당하는 `TabView`/UIKit page container 자체에 직접 animated `offset` 적용
+  - 사용자 확인: 상세 정보 패널 reveal 중 사진 떨림은 사라짐
+  - 남은 확인: panel dismiss 마지막에 기본 배율 사진이 중앙으로 jump 하듯 움직이는 현상 제거. 확대 상태에서는 재현되지 않아 기본 fit/centering 복귀 경로를 우선 조사
+  - fallback 후보: 현재 사진 snapshot/proxy layer를 따로 lift하거나, zoomable view 외부에 UIKit layout과 분리된 transform 전용 wrapper 도입
 - 시뮬레이터/실기기에서 실제 진입/스와이프/동영상 재생 수동 확인
 - 복원 후 bottom sheet 표현에서 사진과 시트의 동반 이동감이 레퍼런스처럼 느껴지는지 수동 확인
 - upward swipe / downward dismiss 감도와 horizontal media paging/zoom pan의 제스처 충돌 수준 확인
+- 확대 상태 사진 pan의 관성이 강해 사용자가 의도한 위치보다 더 이동하는 현상 완화
 - info 버튼 탭과 upward swipe가 완전히 같은 reveal/dismiss 상태 전이를 쓰는지 점검
 - details reveal 중에도 상단/하단 chrome이 어느 수준까지 유지되어야 하는지 정책 확정
 - 상단 위치/날짜 title의 placeholder -> 실데이터 전환은 개선됐지만 실제 기기에서 다시 확인
