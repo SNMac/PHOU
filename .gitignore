@@ -149,7 +149,8 @@ xcuserdata
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,swift,xcode,swiftpm,swiftpackagemanager
 
-# Start of SNMac custom gitignore
+### Start of SNMac custom gitignore ###
 .xcuserstate
+.codex/
 GoogleService-Info.plist
 Secrets.xcconfig
